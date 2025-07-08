@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,12 +29,20 @@ data class SelectableItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SelectableListScreen(initialItems: List<SelectableItem>) {
-    var rememberedItems by remember { mutableStateOf(initialItems) }
+fun SelectableListScreen(
+    packingList: PackingList, // Now takes a full PackingList
+    onUpdateItems: (List<SelectableItem>) -> Unit, // Callback to update items in the parent
+    generateItemId: () -> Int, // Function to get next item ID
+    onNavigateBack: () -> Unit
+) {
+    // Initialize rememberedItems from the items within the passed packingList
+    var rememberedItems by remember(packingList.items) { mutableStateOf(packingList.items) }
     var newItemText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var nextItemId by remember { mutableStateOf(initialItems.maxOfOrNull { it.id }?.plus(1) ?: 1) }
+
+    // The generateItemId function is now passed in, so we don't need to manage nextItemId locally here.
+    // We'll call generateItemId() when we need a new ID for an item.
 
     var activeItemIdForDelete by remember { mutableStateOf<Int?>(null) }
 
@@ -44,10 +53,26 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
         }
     }
 
+    // When items are added or updated, call onUpdateItems to propagate changes
+    // This effect ensures the parent's state (in PackingListApp) is updated
+    // whenever rememberedItems changes locally.
+    LaunchedEffect(rememberedItems) {
+        if (rememberedItems != packingList.items) { // Only update if there's an actual change
+            onUpdateItems(rememberedItems)
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(title = { Text("Shopping List") })
+            TopAppBar(
+                title = { Text(packingList.name) }, // Use the packing list's name
+                navigationIcon = { // Add a back button
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate back")
+                    }
+                }
+            )
         },
         bottomBar = {
             NewItemInputRow(
@@ -55,13 +80,12 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                 onNewItemTextChange = { newItemText = it },
                 onAddItemClick = {
                     if (newItemText.isNotBlank()) {
-                        val newItem = SelectableItem(id = nextItemId++, text = newItemText) // isSelected is false by default
+                        // Use the passed-in generateItemId function
+                        val newItem = SelectableItem(id = generateItemId(), text = newItemText)
                         val oldNewItemText = newItemText
 
-                        // Add the new item and then re-sort the entire list
-                        // to ensure it's placed correctly (after existing unchecked, before any checked).
                         rememberedItems = (rememberedItems + newItem)
-                            .sortedWith(compareBy { it.isSelected }) // Re-sort here
+                            .sortedWith(compareBy { it.isSelected })
 
                         newItemText = ""
                         activeItemIdForDelete = null
@@ -96,11 +120,6 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                         rememberedItems = rememberedItems.map {
                             if (it.id == updatedItem.id) updatedItem else it
                         }
-                        // If an item is checked, it can't be active for delete in the same action
-                        // but if it's unchecked, it might still be the active one.
-                        // For simplicity, we can just clear it here.
-                        // Or, if an item is unchecked, and it was the active one, keep it active:
-                        // if (updatedItem.isSelected) activeItemIdForDelete = null
                     },
                     onDeleteItem = { itemToDelete ->
                         rememberedItems = rememberedItems - itemToDelete
@@ -210,18 +229,5 @@ fun SelectableListItem(
         } else {
             Spacer(modifier = Modifier.width(48.dp)) // Approx. width of an IconButton
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreviewOfSelectableListScreenWithInput() {
-    val sampleItems = listOf(
-        SelectableItem(1, "Apples"),
-        SelectableItem(2, "Bananas", isSelected = true),
-        SelectableItem(3, "Milk")
-    )
-    MaterialTheme {
-        SelectableListScreen(initialItems = sampleItems)
     }
 }
