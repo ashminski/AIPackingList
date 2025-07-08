@@ -1,5 +1,6 @@
 package com.ashleykaminski.aipackinglist
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -32,8 +35,14 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
     val scope = rememberCoroutineScope()
     var nextItemId by remember { mutableStateOf(initialItems.maxOfOrNull { it.id }?.plus(1) ?: 1) }
 
-    // State to keep track of the item ID that is currently "active" for showing delete
     var activeItemIdForDelete by remember { mutableStateOf<Int?>(null) }
+
+    // Derived state for sorted items
+    val sortedItems by remember(rememberedItems) {
+        derivedStateOf {
+            rememberedItems.sortedWith(compareBy { it.isSelected })
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -47,10 +56,11 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                 onAddItemClick = {
                     if (newItemText.isNotBlank()) {
                         val newItem = SelectableItem(id = nextItemId++, text = newItemText)
-                        rememberedItems = rememberedItems + newItem
+                        // Add new items as "not selected" so they appear at the top
+                        rememberedItems = listOf(newItem) + rememberedItems
                         val oldNewItemText = newItemText
                         newItemText = ""
-                        activeItemIdForDelete = null // Hide delete icon on new item add
+                        activeItemIdForDelete = null
                         scope.launch {
                             snackbarHostState.showSnackbar("Item added: ${oldNewItemText}")
                         }
@@ -68,30 +78,26 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
-                // Add a clickable modifier to the LazyColumn to reset activeItemIdForDelete
-                // when clicking outside of any item (e.g., on empty space)
                 .clickable { activeItemIdForDelete = null },
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            items(rememberedItems, key = { it.id }) { item ->
+            items(sortedItems, key = { it.id }) { item ->
                 SelectableListItem(
                     item = item,
-                    isDeleteVisible = item.id == activeItemIdForDelete,
+                    isCurrentlyActiveForDelete = item.id == activeItemIdForDelete,
                     onItemClick = {
-                        // Toggle active state: if already active, deactivate, else activate
-                        activeItemIdForDelete =
-                            if (activeItemIdForDelete == item.id) null else item.id
+                        activeItemIdForDelete = if (activeItemIdForDelete == item.id) null else item.id
                     },
-                    onItemSelected = { newItemState ->
+                    onItemSelected = { updatedItem ->
                         rememberedItems = rememberedItems.map {
-                            if (it.id == newItemState.id) newItemState else it
+                            if (it.id == updatedItem.id) updatedItem else it
                         }
-                        // Optionally, you might want to hide the delete icon when checkbox is toggled
+                        // Optionally hide delete when checkbox is toggled
                         // activeItemIdForDelete = null
                     },
                     onDeleteItem = { itemToDelete ->
                         rememberedItems = rememberedItems - itemToDelete
-                        activeItemIdForDelete = null // Hide delete icon after deletion
+                        activeItemIdForDelete = null
                         scope.launch {
                             snackbarHostState.showSnackbar("Item deleted: ${itemToDelete.text}")
                         }
@@ -135,32 +141,58 @@ fun NewItemInputRow(
 @Composable
 fun SelectableListItem(
     item: SelectableItem,
-    isDeleteVisible: Boolean, // New parameter to control delete icon visibility
-    onItemClick: () -> Unit,   // Callback when the item row is clicked
+    isCurrentlyActiveForDelete: Boolean, // To highlight the item tapped for delete
+    onItemClick: () -> Unit,
     onItemSelected: (SelectableItem) -> Unit,
     onDeleteItem: (SelectableItem) -> Unit
 ) {
+    val itemTextColor = if (item.isSelected) {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // Greyed out
+    } else {
+        LocalContentColor.current // Default text color
+    }
+
+    val textDecoration = if (item.isSelected) {
+        TextDecoration.LineThrough // Strikethrough for checked items
+    } else {
+        null
+    }
+
+    val itemBackgroundColor = when {
+        isCurrentlyActiveForDelete -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) // Highlight for active delete
+        // item.isSelected -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Optional: Slight background for checked items
+        else -> Color.Transparent // Default background
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onItemClick() } // Make the whole row clickable
-            .padding(vertical = 8.dp),
+            .background(itemBackgroundColor) // Apply background color
+            .clickable { onItemClick() }
+            .padding(vertical = 8.dp, horizontal = 4.dp), // Added horizontal padding for background visibility
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
             checked = item.isSelected,
             onCheckedChange = { isChecked ->
                 onItemSelected(item.copy(isSelected = isChecked))
-            }
+            },
+            colors = CheckboxDefaults.colors(
+                checkedColor = if (item.isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                checkmarkColor = MaterialTheme.colorScheme.surface // Color of the checkmark itself
+            )
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = item.text,
             style = MaterialTheme.typography.bodyLarge,
+            color = itemTextColor,
+            textDecoration = textDecoration,
             modifier = Modifier.weight(1f)
         )
-        // Conditionally display the IconButton
-        if (isDeleteVisible) {
+
+        if (isCurrentlyActiveForDelete && !item.isSelected) { // Only show delete if active AND not already checked (greyed out)
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = { onDeleteItem(item) }) {
                 Icon(
@@ -170,11 +202,8 @@ fun SelectableListItem(
                 )
             }
         } else {
-            // Optional: Add a spacer to maintain layout consistency when icon is hidden
-            // This ensures the item text doesn't shift when the icon appears/disappears.
-            // Adjust width to match IconButton's approximate width or use a fixed size.
-            // For a standard IconButton, this might be around 48.dp.
-            // Spacer(modifier = Modifier.width(48.dp)) // Or Icons.Filled.Delete.defaultWidth
+            // Maintain space even if icon is hidden, for consistent layout
+            Spacer(modifier = Modifier.width(48.dp)) // Approx. width of an IconButton
         }
     }
 }
