@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch // Required for Snackbar
 
 // Data class to represent an item in the list
 data class SelectableItem(
@@ -19,29 +20,96 @@ data class SelectableItem(
     var isSelected: Boolean = false
 )
 
+@OptIn(ExperimentalMaterial3Api::class) // For Scaffold and SnackbarHost
 @Composable
-fun SelectableListScreen(items: List<SelectableItem>) {
-    // Remember the state of the items to allow for recomposition when an item is selected
-    var rememberedItems by remember { mutableStateOf(items) }
+fun SelectableListScreen(initialItems: List<SelectableItem>) {
+    // Remember the state of the items to allow for recomposition
+    var rememberedItems by remember { mutableStateOf(initialItems) }
+    // State for the text input field
+    var newItemText by remember { mutableStateOf("") }
+    // State for managing Snackbar visibility
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp)
-    ) {
-        items(rememberedItems, key = { it.id }) { item ->
-            SelectableListItem(
-                item = item,
-                onItemSelected = { newItemState ->
-                    // Update the list with the new item state
-                    rememberedItems = rememberedItems.map {
-                        if (it.id == newItemState.id) newItemState else it
+    // Counter to generate unique IDs for new items
+    var nextItemId by remember { mutableStateOf(initialItems.maxOfOrNull { it.id }?.plus(1) ?: 1) }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(title = { Text("Shopping List") }) // Optional: Add a title
+        },
+        bottomBar = {
+            NewItemInputRow(
+                newItemText = newItemText,
+                onNewItemTextChange = { newItemText = it },
+                onAddItemClick = {
+                    if (newItemText.isNotBlank()) {
+                        val newItem = SelectableItem(id = nextItemId++, text = newItemText)
+                        rememberedItems = rememberedItems + newItem // Add to the list
+                        newItemText = "" // Clear the input field
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Item added: ${newItem.text}")
+                        }
+                    } else {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Please enter item text")
+                        }
                     }
                 }
             )
-            Divider() // Optional: Adds a line between items
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues) // Apply padding from Scaffold
+                .padding(horizontal = 16.dp), // Additional horizontal padding for list items
+            contentPadding = PaddingValues(vertical = 16.dp) // Padding for top and bottom of the list
+        ) {
+            items(rememberedItems, key = { it.id }) { item ->
+                SelectableListItem(
+                    item = item,
+                    onItemSelected = { newItemState ->
+                        rememberedItems = rememberedItems.map {
+                            if (it.id == newItemState.id) newItemState else it
+                        }
+                    }
+                )
+                Divider()
+            }
         }
     }
 }
+
+@Composable
+fun NewItemInputRow(
+    newItemText: String,
+    onNewItemTextChange: (String) -> Unit,
+    onAddItemClick: () -> Unit
+) {
+    Surface(shadowElevation = 4.dp) { // Add some elevation to the input row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = newItemText,
+                onValueChange = onNewItemTextChange,
+                label = { Text("New item") },
+                modifier = Modifier.weight(1f),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = onAddItemClick) {
+                Text("Add")
+            }
+        }
+    }
+}
+
 
 @Composable
 fun SelectableListItem(
@@ -70,13 +138,13 @@ fun SelectableListItem(
 
 @Preview(showBackground = true)
 @Composable
-fun DefaultPreviewOfSelectableListScreen() {
+fun DefaultPreviewOfSelectableListScreenWithInput() {
     val sampleItems = listOf(
-        SelectableItem(1, "Item 1"),
-        SelectableItem(2, "Item 2", isSelected = true),
-        SelectableItem(3, "Item 3")
+        SelectableItem(1, "Apples"),
+        SelectableItem(2, "Bananas", isSelected = true),
+        SelectableItem(3, "Milk")
     )
-    MaterialTheme { // Ensure a MaterialTheme is applied for preview
-        SelectableListScreen(items = sampleItems)
+    MaterialTheme {
+        SelectableListScreen(initialItems = sampleItems)
     }
 }
