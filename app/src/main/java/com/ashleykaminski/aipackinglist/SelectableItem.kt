@@ -55,21 +55,13 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                 onNewItemTextChange = { newItemText = it },
                 onAddItemClick = {
                     if (newItemText.isNotBlank()) {
-                        val newItem = SelectableItem(id = nextItemId++, text = newItemText)
-                        val oldNewItemText = newItemText // Store for snackbar
+                        val newItem = SelectableItem(id = nextItemId++, text = newItemText) // isSelected is false by default
+                        val oldNewItemText = newItemText
 
-                        // Find the index of the first checked item
-                        val firstCheckedItemIndex = rememberedItems.indexOfFirst { it.isSelected }
-
-                        rememberedItems = if (firstCheckedItemIndex == -1) {
-                            // No items are checked, add to the end of the current list
-                            rememberedItems + newItem
-                        } else {
-                            // Insert before the first checked item
-                            val newList = rememberedItems.toMutableList()
-                            newList.add(firstCheckedItemIndex, newItem)
-                            newList.toList()
-                        }
+                        // Add the new item and then re-sort the entire list
+                        // to ensure it's placed correctly (after existing unchecked, before any checked).
+                        rememberedItems = (rememberedItems + newItem)
+                            .sortedWith(compareBy { it.isSelected }) // Re-sort here
 
                         newItemText = ""
                         activeItemIdForDelete = null
