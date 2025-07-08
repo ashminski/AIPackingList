@@ -56,9 +56,21 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                 onAddItemClick = {
                     if (newItemText.isNotBlank()) {
                         val newItem = SelectableItem(id = nextItemId++, text = newItemText)
-                        // Add new items as "not selected" so they appear at the top
-                        rememberedItems = listOf(newItem) + rememberedItems
-                        val oldNewItemText = newItemText
+                        val oldNewItemText = newItemText // Store for snackbar
+
+                        // Find the index of the first checked item
+                        val firstCheckedItemIndex = rememberedItems.indexOfFirst { it.isSelected }
+
+                        rememberedItems = if (firstCheckedItemIndex == -1) {
+                            // No items are checked, add to the end of the current list
+                            rememberedItems + newItem
+                        } else {
+                            // Insert before the first checked item
+                            val newList = rememberedItems.toMutableList()
+                            newList.add(firstCheckedItemIndex, newItem)
+                            newList.toList()
+                        }
+
                         newItemText = ""
                         activeItemIdForDelete = null
                         scope.launch {
@@ -92,8 +104,11 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                         rememberedItems = rememberedItems.map {
                             if (it.id == updatedItem.id) updatedItem else it
                         }
-                        // Optionally hide delete when checkbox is toggled
-                        // activeItemIdForDelete = null
+                        // If an item is checked, it can't be active for delete in the same action
+                        // but if it's unchecked, it might still be the active one.
+                        // For simplicity, we can just clear it here.
+                        // Or, if an item is unchecked, and it was the active one, keep it active:
+                        // if (updatedItem.isSelected) activeItemIdForDelete = null
                     },
                     onDeleteItem = { itemToDelete ->
                         rememberedItems = rememberedItems - itemToDelete
@@ -141,35 +156,34 @@ fun NewItemInputRow(
 @Composable
 fun SelectableListItem(
     item: SelectableItem,
-    isCurrentlyActiveForDelete: Boolean, // To highlight the item tapped for delete
+    isCurrentlyActiveForDelete: Boolean,
     onItemClick: () -> Unit,
     onItemSelected: (SelectableItem) -> Unit,
     onDeleteItem: (SelectableItem) -> Unit
 ) {
     val itemTextColor = if (item.isSelected) {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) // Greyed out
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
     } else {
-        LocalContentColor.current // Default text color
+        LocalContentColor.current
     }
 
     val textDecoration = if (item.isSelected) {
-        TextDecoration.LineThrough // Strikethrough for checked items
+        TextDecoration.LineThrough
     } else {
         null
     }
 
     val itemBackgroundColor = when {
-        isCurrentlyActiveForDelete -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) // Highlight for active delete
-        // item.isSelected -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) // Optional: Slight background for checked items
-        else -> Color.Transparent // Default background
+        isCurrentlyActiveForDelete -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        else -> Color.Transparent
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(itemBackgroundColor) // Apply background color
+            .background(itemBackgroundColor)
             .clickable { onItemClick() }
-            .padding(vertical = 8.dp, horizontal = 4.dp), // Added horizontal padding for background visibility
+            .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
@@ -180,7 +194,7 @@ fun SelectableListItem(
             colors = CheckboxDefaults.colors(
                 checkedColor = if (item.isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) else MaterialTheme.colorScheme.primary,
                 uncheckedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                checkmarkColor = MaterialTheme.colorScheme.surface // Color of the checkmark itself
+                checkmarkColor = MaterialTheme.colorScheme.surface
             )
         )
         Spacer(modifier = Modifier.width(16.dp))
@@ -192,7 +206,7 @@ fun SelectableListItem(
             modifier = Modifier.weight(1f)
         )
 
-        if (isCurrentlyActiveForDelete && !item.isSelected) { // Only show delete if active AND not already checked (greyed out)
+        if (isCurrentlyActiveForDelete) { // Show delete if item is active (regardless of checked state)
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = { onDeleteItem(item) }) {
                 Icon(
@@ -202,7 +216,6 @@ fun SelectableListItem(
                 )
             }
         } else {
-            // Maintain space even if icon is hidden, for consistent layout
             Spacer(modifier = Modifier.width(48.dp)) // Approx. width of an IconButton
         }
     }
