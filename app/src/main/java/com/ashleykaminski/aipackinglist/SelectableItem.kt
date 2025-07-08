@@ -1,5 +1,6 @@
 package com.ashleykaminski.aipackinglist
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 data class SelectableItem(
     val id: Int,
     val text: String,
-    var isSelected: Boolean = false
+    var isSelected: Boolean = false // For the checkbox
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,6 +31,9 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var nextItemId by remember { mutableStateOf(initialItems.maxOfOrNull { it.id }?.plus(1) ?: 1) }
+
+    // State to keep track of the item ID that is currently "active" for showing delete
+    var activeItemIdForDelete by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -44,8 +48,9 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
                     if (newItemText.isNotBlank()) {
                         val newItem = SelectableItem(id = nextItemId++, text = newItemText)
                         rememberedItems = rememberedItems + newItem
-                        val oldNewItemText = newItemText // Store for Snackbar message
+                        val oldNewItemText = newItemText
                         newItemText = ""
+                        activeItemIdForDelete = null // Hide delete icon on new item add
                         scope.launch {
                             snackbarHostState.showSnackbar("Item added: ${oldNewItemText}")
                         }
@@ -62,19 +67,31 @@ fun SelectableListScreen(initialItems: List<SelectableItem>) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                // Add a clickable modifier to the LazyColumn to reset activeItemIdForDelete
+                // when clicking outside of any item (e.g., on empty space)
+                .clickable { activeItemIdForDelete = null },
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             items(rememberedItems, key = { it.id }) { item ->
                 SelectableListItem(
                     item = item,
+                    isDeleteVisible = item.id == activeItemIdForDelete,
+                    onItemClick = {
+                        // Toggle active state: if already active, deactivate, else activate
+                        activeItemIdForDelete =
+                            if (activeItemIdForDelete == item.id) null else item.id
+                    },
                     onItemSelected = { newItemState ->
                         rememberedItems = rememberedItems.map {
                             if (it.id == newItemState.id) newItemState else it
                         }
+                        // Optionally, you might want to hide the delete icon when checkbox is toggled
+                        // activeItemIdForDelete = null
                     },
                     onDeleteItem = { itemToDelete ->
-                        rememberedItems = rememberedItems - itemToDelete // Remove the item
+                        rememberedItems = rememberedItems - itemToDelete
+                        activeItemIdForDelete = null // Hide delete icon after deletion
                         scope.launch {
                             snackbarHostState.showSnackbar("Item deleted: ${itemToDelete.text}")
                         }
@@ -118,12 +135,15 @@ fun NewItemInputRow(
 @Composable
 fun SelectableListItem(
     item: SelectableItem,
+    isDeleteVisible: Boolean, // New parameter to control delete icon visibility
+    onItemClick: () -> Unit,   // Callback when the item row is clicked
     onItemSelected: (SelectableItem) -> Unit,
-    onDeleteItem: (SelectableItem) -> Unit // Callback to delete the item
+    onDeleteItem: (SelectableItem) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onItemClick() } // Make the whole row clickable
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -137,15 +157,24 @@ fun SelectableListItem(
         Text(
             text = item.text,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f) // Make text take available space
+            modifier = Modifier.weight(1f)
         )
-        Spacer(modifier = Modifier.width(8.dp)) // Space before delete icon
-        IconButton(onClick = { onDeleteItem(item) }) {
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = "Delete item",
-                tint = MaterialTheme.colorScheme.error // Use error color for delete
-            )
+        // Conditionally display the IconButton
+        if (isDeleteVisible) {
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(onClick = { onDeleteItem(item) }) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Delete item",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+        } else {
+            // Optional: Add a spacer to maintain layout consistency when icon is hidden
+            // This ensures the item text doesn't shift when the icon appears/disappears.
+            // Adjust width to match IconButton's approximate width or use a fixed size.
+            // For a standard IconButton, this might be around 48.dp.
+            // Spacer(modifier = Modifier.width(48.dp)) // Or Icons.Filled.Delete.defaultWidth
         }
     }
 }
