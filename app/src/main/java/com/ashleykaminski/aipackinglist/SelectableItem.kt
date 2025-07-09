@@ -19,8 +19,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 
 // Data class to represent an item in the list
+@Serializable
 data class SelectableItem(
     val id: Int,
     val text: String,

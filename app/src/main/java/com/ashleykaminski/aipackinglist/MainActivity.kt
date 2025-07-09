@@ -1,6 +1,7 @@
 // MainActivity.kt or a new App.kt
 package com.ashleykaminski.aipackinglist
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,20 +21,33 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.datastore.dataStore
 import com.ashleykaminski.aipackinglist.SelectableItem
 import com.ashleykaminski.aipackinglist.SelectableListScreen
 import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
 import kotlinx.coroutines.launch // For Snackbar
+import kotlinx.serialization.Serializable
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 // --- Data Classes (SelectableItem, PackingList) ---
 // New data class to represent a Packing List
+@Serializable
 data class PackingList(
     val id: Int,
     val name: String,
     val items: List<SelectableItem> = emptyList() // Each packing list has its own items
 )
+// A wrapper class for your list of PackingLists, useful for DataStore
+@Serializable
+data class UserPreferences(
+    val packingLists: List<PackingList> = emptyList(),
+    val nextPackingListId: Int = 1,
+    val nextItemId: Int = 1
+)
+
 // (Already defined above, ensure they are in scope)
 
 // --- Screen States for Navigation ---
@@ -41,6 +55,12 @@ sealed class Screen {
     object PackingListsScreen : Screen()
     data class ItemsScreen(val listId: Int) : Screen()
 }
+
+// Create the DataStore instance
+val Context.userPreferencesDataStore: androidx.datastore.core.DataStore<UserPreferences> by dataStore(
+    fileName = "user_prefs.pb", // File name for storing the data
+    serializer = UserPreferencesSerializer
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -55,61 +75,85 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// MainActivity.kt
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PackingListApp() {
-    var packingLists by remember { mutableStateOf<List<PackingList>>(emptyList()) }
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.PackingListsScreen) }
-    var nextPackingListId by remember { mutableStateOf(1) }
-    var nextItemId by remember { mutableStateOf(1) } // Global item ID counter for simplicity
+fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = PackingListViewModelFactory(LocalContext.current))) {
+    // Collect the entire UserPreferences state
+    val userPreferences by viewModel.userPreferencesFlow.collectAsState()
 
-    // Function to update a specific packing list's items
-    val updatePackingListItems: (Int, List<SelectableItem>) -> Unit = { listId, newItems ->
-        packingLists = packingLists.map {
-            if (it.id == listId) it.copy(items = newItems) else it
-        }
+    // Now use userPreferences.packingLists, userPreferences.nextPackingListId, etc.
+    // instead of local remember states for this top-level data.
+    var currentScreen by remember { mutableStateOf<Screen>(Screen.PackingListsScreen) }
+
+    // --- Update Callbacks ---
+    // Example: When adding a new list
+    val addNewListHandler = {
+        val idForThisList = userPreferences.nextPackingListId // ID for the current new list
+        val newNextPackingListIdToStore = userPreferences.nextPackingListId + 1 // ID for the *next* list
+
+        val newList = PackingList(
+            id = idForThisList, // Use the captured ID
+            name = "Packing List ${idForThisList}" // Use the captured ID
+        )
+        val updatedLists = userPreferences.packingLists + newList
+
+        viewModel.saveUserPreferences(
+            userPreferences.copy(
+                packingLists = updatedLists,
+                nextPackingListId = newNextPackingListIdToStore // Store the incremented ID
+            )
+        )
+        currentScreen = Screen.ItemsScreen(newList.id)
     }
 
-    // Function to generate unique item IDs for a given list
-    // More robust ID generation might be needed for complex apps
-    val generateNextItemId: () -> Int = { nextItemId++ }
+    // Example: When updating items in a specific list
+    val updateItemsHandler: (Int, List<SelectableItem>) -> Unit = { listId, newItems ->
+        val updatedGlobalLists = userPreferences.packingLists.map {
+            if (it.id == listId) it.copy(items = newItems) else it
+        }
+        viewModel.saveUserPreferences(
+            userPreferences.copy(packingLists = updatedGlobalLists)
+        )
+    }
+
+    // Example: When generating a new item ID
+    val generateItemIdHandler: () -> Int = {
+        val idToUse = userPreferences.nextItemId // Get the current ID to use for *this* item
+        val newNextItemIdToStore = userPreferences.nextItemId + 1 // Calculate the ID for the *next* item
+        viewModel.updateNextItemId(newNextItemIdToStore) // Tell ViewModel to store the incremented ID
+        idToUse // Return the ID that was just allocated for the current item
+    }
 
 
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
                 AllPackingListsScreen(
-                    packingLists = packingLists,
+                    packingLists = userPreferences.packingLists, // Use from ViewModel
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
-                    onAddNewList = {
-                        val newList = PackingList(id = nextPackingListId++, name = "Packing List ${nextPackingListId -1 }")
-                        packingLists = packingLists + newList
-                        currentScreen = Screen.ItemsScreen(newList.id) // Navigate to the new list
-                    }
+                    onAddNewList = addNewListHandler
                 )
             }
             is Screen.ItemsScreen -> {
-                val list = packingLists.find { it.id == screen.listId }
+                val list = userPreferences.packingLists.find { it.id == screen.listId }
                 if (list != null) {
-                    // Pass a lambda to generate item IDs specific to this list context
                     SelectableListScreen(
-                        packingList = list,
+                        packingList = list, // Pass the specific list
                         onUpdateItems = { updatedItems ->
-                            updatePackingListItems(list.id, updatedItems)
+                            updateItemsHandler(list.id, updatedItems)
                         },
-                        generateItemId = generateNextItemId, // Pass the ID generator
+                        generateItemId = generateItemIdHandler, // Pass the updated ID generator
                         onNavigateBack = { currentScreen = Screen.PackingListsScreen }
                     )
                 } else {
-                    // Handle case where list is not found (e.g., navigate back or show error)
                     Text("Error: List not found. Navigating back.")
                     LaunchedEffect(Unit) {
                         currentScreen = Screen.PackingListsScreen
                     }
                 }
             }
-
-            else -> {}
         }
     }
 }
