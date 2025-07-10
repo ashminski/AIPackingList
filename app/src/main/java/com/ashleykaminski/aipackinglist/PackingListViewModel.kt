@@ -1,52 +1,74 @@
 package com.ashleykaminski.aipackinglist
 
 import android.content.Context
-import androidx.datastore.core.DataStore
+import android.util.Log // For logging
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.datastore.core.DataStore // Ensure correct import
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+// import kotlinx.coroutines.flow.map // Not used directly in this snippet but often useful
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) :
-    ViewModel() {
+class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : ViewModel() {
 
-    // Expose UserPreferences as a StateFlow
     val userPreferencesFlow: StateFlow<UserPreferences> = dataStore.data.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.Eagerly, // Or Lazily, depending on your needs
-        initialValue = UserPreferences() // Initial default value
+        started = SharingStarted.Eagerly,
+        initialValue = UserPreferences()
     )
 
-    fun updatePackingLists(newLists: List<PackingList>) {
+    // Function to add a new list and update the nextPackingListId
+    fun addNewListAndUpdateIds(newList: PackingList, newNextPackingListId: Int) {
         viewModelScope.launch {
             dataStore.updateData { currentPreferences ->
+                Log.d("ViewModel", "addNewListAndUpdateIds: Current nextPackingListId=${currentPreferences.nextPackingListId}, newNextPackingListId=$newNextPackingListId")
+                Log.d("ViewModel", "addNewListAndUpdateIds: Current lists count=${currentPreferences.packingLists.size}, adding list: ${newList.name}")
+
+                val updatedLists = currentPreferences.packingLists + newList
+
+                currentPreferences.copy(
+                    packingLists = updatedLists,
+                    nextPackingListId = newNextPackingListId
+                )
+            }
+        }
+    }
+
+    // Only updates packingLists, using the latest other preferences from DataStore
+    fun updatePackingListsOnly(newLists: List<PackingList>) {
+        viewModelScope.launch {
+            dataStore.updateData { currentPreferences ->
+                Log.d("ViewModel", "updatePackingListsOnly: Updating lists. New lists count=${newLists.size}")
                 currentPreferences.copy(packingLists = newLists)
             }
         }
     }
 
-    fun updateNextPackingListId(newId: Int) {
-        viewModelScope.launch {
-            dataStore.updateData { currentPreferences ->
-                currentPreferences.copy(nextPackingListId = newId)
-            }
-        }
-    }
-
+    // Updates only nextItemId
     fun updateNextItemId(newId: Int) {
         viewModelScope.launch {
             dataStore.updateData { currentPreferences ->
+                Log.d("ViewModel", "updateNextItemId: Current nextItemId=${currentPreferences.nextItemId}, newNextItemId=$newId")
+                if (currentPreferences.nextItemId == newId) {
+                    Log.w("ViewModel", "updateNextItemId: newId ($newId) is the same as current nextItemId. This might be an issue or redundant call.")
+                }
                 currentPreferences.copy(nextItemId = newId)
             }
         }
     }
 
-
+    // This function can be kept if you have scenarios where you want to overwrite everything
+    // but be cautious with it if other specific update functions are being used concurrently.
     fun saveUserPreferences(preferences: UserPreferences) {
         viewModelScope.launch {
-            dataStore.updateData { preferences }
+            Log.d("ViewModel", "saveUserPreferences: Saving full preferences object. nextItemId=${preferences.nextItemId}, nextPackingListId=${preferences.nextPackingListId}")
+            dataStore.updateData {
+                // Simply returns the new preferences object, replacing the old one.
+                preferences
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package com.ashleykaminski.aipackinglist
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -80,71 +81,66 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = PackingListViewModelFactory(LocalContext.current))) {
-    // Collect the entire UserPreferences state
     val userPreferences by viewModel.userPreferencesFlow.collectAsState()
-
-    // Now use userPreferences.packingLists, userPreferences.nextPackingListId, etc.
-    // instead of local remember states for this top-level data.
     var currentScreen by remember { mutableStateOf<Screen>(Screen.PackingListsScreen) }
 
-    // --- Update Callbacks ---
-    // Example: When adding a new list
     val addNewListHandler = {
-        val idForThisList = userPreferences.nextPackingListId // ID for the current new list
-        val newNextPackingListIdToStore = userPreferences.nextPackingListId + 1 // ID for the *next* list
+        // These are calculated based on the *current* state from userPreferencesFlow
+        val idForThisList = userPreferences.nextPackingListId
+        val newNextPackingListIdToStore = userPreferences.nextPackingListId + 1
 
         val newList = PackingList(
-            id = idForThisList, // Use the captured ID
-            name = "Packing List ${idForThisList}" // Use the captured ID
+            id = idForThisList,
+            name = "Packing List ${idForThisList}"
+            // items will default to emptyList as per PackingList definition
         )
-        val updatedLists = userPreferences.packingLists + newList
 
-        viewModel.saveUserPreferences(
-            userPreferences.copy(
-                packingLists = updatedLists,
-                nextPackingListId = newNextPackingListIdToStore // Store the incremented ID
-            )
-        )
-        currentScreen = Screen.ItemsScreen(newList.id)
+        // Call the ViewModel function, passing the new list and the next ID to store
+        viewModel.addNewListAndUpdateIds(newList, newNextPackingListIdToStore)
+
+        currentScreen = Screen.ItemsScreen(newList.id) // Navigate after initiating the save
     }
 
-    // Example: When updating items in a specific list
     val updateItemsHandler: (Int, List<SelectableItem>) -> Unit = { listId, newItems ->
         val updatedGlobalLists = userPreferences.packingLists.map {
             if (it.id == listId) it.copy(items = newItems) else it
         }
-        viewModel.saveUserPreferences(
-            userPreferences.copy(packingLists = updatedGlobalLists)
-        )
+        viewModel.updatePackingListsOnly(updatedGlobalLists)
     }
 
-    // Example: When generating a new item ID
     val generateItemIdHandler: () -> Int = {
-        val idToUse = userPreferences.nextItemId // Get the current ID to use for *this* item
-        val newNextItemIdToStore = userPreferences.nextItemId + 1 // Calculate the ID for the *next* item
-        viewModel.updateNextItemId(newNextItemIdToStore) // Tell ViewModel to store the incremented ID
-        idToUse // Return the ID that was just allocated for the current item
+        val idToUse = userPreferences.nextItemId
+        Log.d(
+            "ID_DEBUG",
+            "generateItemIdHandler: idToUse = $idToUse, current userPreferences.nextItemId = ${userPreferences.nextItemId}"
+        )
+        val newNextItemIdToStore = userPreferences.nextItemId + 1
+        Log.d("ID_DEBUG", "generateItemIdHandler: newNextItemIdToStore = $newNextItemIdToStore")
+        viewModel.updateNextItemId(newNextItemIdToStore)
+        idToUse
     }
 
-
+    // ... rest of your PackingListApp
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
                 AllPackingListsScreen(
-                    packingLists = userPreferences.packingLists, // Use from ViewModel
+                    packingLists = userPreferences.packingLists,
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
-                    onAddNewList = addNewListHandler
+                    onAddNewList = addNewListHandler // Use the updated handler
                 )
             }
+
             is Screen.ItemsScreen -> {
+                // find the list from userPreferences.packingLists
                 val list = userPreferences.packingLists.find { it.id == screen.listId }
                 if (list != null) {
                     SelectableListScreen(
-                        packingList = list, // Pass the specific list
+                        packingList = list,
                         onUpdateItems = { updatedItems ->
                             updateItemsHandler(list.id, updatedItems)
                         },
-                        generateItemId = generateItemIdHandler, // Pass the updated ID generator
+                        generateItemId = generateItemIdHandler,
                         onNavigateBack = { currentScreen = Screen.PackingListsScreen }
                     )
                 } else {
