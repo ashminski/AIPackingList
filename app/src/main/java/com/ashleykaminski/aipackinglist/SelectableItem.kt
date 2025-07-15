@@ -1,11 +1,13 @@
 package com.ashleykaminski.aipackinglist
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -43,6 +45,9 @@ fun SelectableListScreen(
     var newItemText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // 1. Create and remember the LazyListState
+    val listState = rememberLazyListState()
 
     // The generateItemId function is now passed in, so we don't need to manage nextItemId locally here.
     // We'll call generateItemId() when we need a new ID for an item.
@@ -86,17 +91,42 @@ fun SelectableListScreen(
                 onNewItemTextChange = { newItemText = it },
                 onAddItemClick = {
                     if (newItemText.isNotBlank()) {
-                        // Use the passed-in generateItemId function
-                        val newItem = SelectableItem(id = generateItemId(), text = newItemText)
+                        val newItemId = generateItemId()
+                        val newItemToAdd = SelectableItem(id = newItemId, text = newItemText) // Renamed to avoid confusion
                         val oldNewItemText = newItemText
 
-                        rememberedItems = (rememberedItems + newItem)
-                            .sortedWith(compareBy { it.isSelected })
+                        // Create the next version of the items list
+                        val nextRememberedItems = rememberedItems + newItemToAdd
+                        rememberedItems = nextRememberedItems // Update the state
 
                         newItemText = ""
                         activeItemIdForDelete = null
+
                         scope.launch {
                             snackbarHostState.showSnackbar("Item added: ${oldNewItemText}")
+                        }
+
+                        scope.launch {
+                            // Now, sort THIS 'nextRememberedItems' list to find the index
+                            // This guarantees you're looking at the list that includes the new item.
+                            val itemsAfterAddAndSorted = nextRememberedItems.sortedWith(compareBy { it.isSelected })
+                            val newIndex = itemsAfterAddAndSorted.indexOfFirst { it.id == newItemToAdd.id }
+
+                            Log.d("ScrollDebug", "Attempting to scroll. New item ID: ${newItemToAdd.id}, Text: ${newItemToAdd.text}")
+                            Log.d("ScrollDebug", "Items after add and sort count: ${itemsAfterAddAndSorted.size}")
+                            Log.d("ScrollDebug", "Found index for new item: $newIndex")
+
+                            if (newIndex != -1) {
+                                listState.animateScrollToItem(index = newIndex)
+                                Log.d("ScrollDebug", "animateScrollToItem called for index $newIndex")
+                            } else {
+                                // This block should ideally not be hit now if IDs are unique and item is added.
+                                Log.e("ScrollDebug", "CRITICAL: New item ID ${newItemToAdd.id} NOT FOUND after manual sort. This shouldn't happen.")
+                                if (itemsAfterAddAndSorted.isNotEmpty()) {
+                                    // Fallback to end of the *newly sorted* list
+                                    listState.animateScrollToItem(index = itemsAfterAddAndSorted.size - 1)
+                                }
+                            }
                         }
                     } else {
                         scope.launch {
@@ -104,15 +134,14 @@ fun SelectableListScreen(
                         }
                     }
                 },
-                // Apply IME padding *directly to the BottomAppBar content*
-                // This will push the content of NewItemInputRow up when the keyboard appears.
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .imePadding() // ADD THIS
+                    .imePadding()
             )
         }
     ) { scaffoldPaddingValues -> // These are from Scaffold (for system bars, top/bottom bars)
         LazyColumn(
+            state = listState, // 2. Pass the state to LazyColumn
             modifier = Modifier
                 .fillMaxSize()
                 // 1. Apply the padding from Scaffold. This accounts for system bars,
