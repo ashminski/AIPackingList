@@ -2,6 +2,7 @@ package com.ashleykaminski.aipackinglist
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,7 +30,7 @@ data class SelectableItem(
     var isSelected: Boolean = false // For the checkbox
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class,  ExperimentalLayoutApi::class) // Need ExperimentalLayoutApi for WindowInsets)
 @Composable
 fun SelectableListScreen(
     packingList: PackingList, // Now takes a full PackingList
@@ -65,6 +66,9 @@ fun SelectableListScreen(
     }
 
     Scaffold(
+        // Modifier.fillMaxSize() on Scaffold is usually good.
+        // Let's ensure the Scaffold itself is not consuming IME insets meant for specific children.
+        modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
@@ -99,17 +103,35 @@ fun SelectableListScreen(
                             snackbarHostState.showSnackbar("Please enter item text")
                         }
                     }
-                }
+                },
+                // Apply IME padding *directly to the BottomAppBar content*
+                // This will push the content of NewItemInputRow up when the keyboard appears.
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .imePadding() // ADD THIS
             )
         }
-    ) { paddingValues ->
+    ) { scaffoldPaddingValues -> // These are from Scaffold (for system bars, top/bottom bars)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-                .clickable { activeItemIdForDelete = null },
-            contentPadding = PaddingValues(vertical = 16.dp)
+                // 1. Apply the padding from Scaffold. This accounts for system bars,
+                //    TopAppBar, and the space reserved for the BottomAppBar.
+                .padding(scaffoldPaddingValues)
+                // 2. IMPORTANT: Do NOT apply .imePadding() here on the LazyColumn directly
+                //    if the TextField is in the BottomAppBar. If the TextField were *inside*
+                //    the LazyColumn, then imePadding() here would be correct for that case.
+                //    Since the TextField is in the bottomBar, the bottomBar itself needs to react.
+                .padding(horizontal = 16.dp) // Your specific horizontal padding
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null // Optional: remove ripple if you only want to clear focus
+                ) {
+                    activeItemIdForDelete = null
+                    // Consider also clearing keyboard focus here if needed
+                    // LocalSoftwareKeyboardController.current?.hide()
+                },
+            contentPadding = PaddingValues(vertical = 16.dp) // Inner content padding
         ) {
             items(sortedItems, key = { it.id }) { item ->
                 SelectableListItem(
@@ -141,9 +163,13 @@ fun SelectableListScreen(
 fun NewItemInputRow(
     newItemText: String,
     onNewItemTextChange: (String) -> Unit,
-    onAddItemClick: () -> Unit
+    onAddItemClick: () -> Unit,
+    modifier: Modifier = Modifier // Add the modifier parameter here
+
 ) {
-    Surface(shadowElevation = 4.dp) {
+    Surface(
+        modifier = modifier, // Apply the passed-in modifier to the Surface
+        shadowElevation = 4.dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
