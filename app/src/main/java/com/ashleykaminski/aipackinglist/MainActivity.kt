@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,8 +56,40 @@ data class UserPreferences(
 
 // --- Screen States for Navigation ---
 sealed class Screen {
-    object PackingListsScreen : Screen()
+    object PackingListsScreen : Screen() // This is an object
     data class ItemsScreen(val listId: Int) : Screen()
+
+    companion object {
+        // Define String constants for screen types to avoid typos
+        private const val TYPE_PACKING_LISTS = "PackingListsScreen"
+        private const val TYPE_ITEMS = "ItemsScreen"
+        private const val KEY_LIST_ID = "listId"
+
+        val Saver: Saver<Screen, Any> = Saver(
+            save = { screen ->
+                when (screen) {
+                    is PackingListsScreen -> mapOf("type" to TYPE_PACKING_LISTS) // Value is String
+                    is ItemsScreen -> mapOf("type" to TYPE_ITEMS, KEY_LIST_ID to screen.listId) // Values are String, Int
+                }
+            },
+            restore = { savedValue ->
+                // savedValue will be the Map from above, which is 'Any' but we expect a Map
+                val map = savedValue as? Map<String, Any> ?: return@Saver null
+                when (map["type"] as? String) {
+                    TYPE_PACKING_LISTS -> PackingListsScreen
+                    TYPE_ITEMS -> {
+                        val listId = map[KEY_LIST_ID] as? Int
+                        if (listId != null) {
+                            ItemsScreen(listId)
+                        } else {
+                            PackingListsScreen // Fallback
+                        }
+                    }
+                    else -> null // Fallback or throw for unknown type
+                }
+            }
+        )
+    }
 }
 
 // Create the DataStore instance
@@ -82,7 +117,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = PackingListViewModelFactory(LocalContext.current))) {
     val userPreferences by viewModel.userPreferencesFlow.collectAsState()
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.PackingListsScreen) }
+    var currentScreen by rememberSaveable(stateSaver = Screen.Saver) {
+        mutableStateOf<Screen>(Screen.PackingListsScreen as Screen) // Explicit cast, though not strictly needed usually
+    }
 
     val addNewListHandler = {
         // These are calculated based on the *current* state from userPreferencesFlow
@@ -120,19 +157,24 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
         idToUse
     }
 
-    // ... rest of your PackingListApp
+    // This is the navigation logic passed to SelectableListScreen
+    val navigateToPackingListsScreen = {
+        currentScreen = Screen.PackingListsScreen
+    }
+
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
                 AllPackingListsScreen(
                     packingLists = userPreferences.packingLists,
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
-                    onAddNewList = addNewListHandler // Use the updated handler
+                    onAddNewList = addNewListHandler
                 )
+                // No custom BackHandler needed here, as exiting from main screen is usually desired.
+                // Or, if you have a splash screen before this, you might have a BackHandler
+                // to prevent going back to the splash. For now, default is fine.
             }
-
             is Screen.ItemsScreen -> {
-                // find the list from userPreferences.packingLists
                 val list = userPreferences.packingLists.find { it.id == screen.listId }
                 if (list != null) {
                     SelectableListScreen(
@@ -141,12 +183,22 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                             updateItemsHandler(list.id, updatedItems)
                         },
                         generateItemId = generateItemIdHandler,
-                        onNavigateBack = { currentScreen = Screen.PackingListsScreen }
+                        onNavigateBack = navigateToPackingListsScreen // Pass the navigation lambda
                     )
+
+                    // Add BackHandler here for the ItemsScreen
+                    BackHandler(enabled = true) { // enabled = true means it will intercept back presses
+                        navigateToPackingListsScreen() // Perform your custom back navigation
+                    }
+
                 } else {
                     Text("Error: List not found. Navigating back.")
                     LaunchedEffect(Unit) {
-                        currentScreen = Screen.PackingListsScreen
+                        navigateToPackingListsScreen()
+                    }
+                    // Also handle back press here if error state is shown
+                    BackHandler(enabled = true) {
+                        navigateToPackingListsScreen()
                     }
                 }
             }
