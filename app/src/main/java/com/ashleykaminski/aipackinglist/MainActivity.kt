@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items // Correct import for LazyColumn items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -26,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.datastore.dataStore
@@ -35,6 +39,11 @@ import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
 import kotlinx.coroutines.launch // For Snackbar
 import kotlinx.serialization.Serializable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController // For hiding keyboard
+
 
 // --- Data Classes (SelectableItem, PackingList) ---
 // New data class to represent a Packing List
@@ -118,7 +127,7 @@ class MainActivity : ComponentActivity() {
 fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = PackingListViewModelFactory(LocalContext.current))) {
     val userPreferences by viewModel.userPreferencesFlow.collectAsState()
     var currentScreen by rememberSaveable(stateSaver = Screen.Saver) {
-        mutableStateOf<Screen>(Screen.PackingListsScreen as Screen) // Explicit cast, though not strictly needed usually
+        mutableStateOf<Screen>(Screen.PackingListsScreen)
     }
 
     val addNewListHandler = {
@@ -162,28 +171,33 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
         currentScreen = Screen.PackingListsScreen
     }
 
+    val renameListHandler = { listId: Int, newName: String ->
+        viewModel.renamePackingList(listId, newName)
+    }
+
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
                 AllPackingListsScreen(
                     packingLists = userPreferences.packingLists,
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
-                    onAddNewList = addNewListHandler
+                    onAddNewList = addNewListHandler,
+                    onRenameList = renameListHandler // Pass the new handler
                 )
-                // No custom BackHandler needed here, as exiting from main screen is usually desired.
-                // Or, if you have a splash screen before this, you might have a BackHandler
-                // to prevent going back to the splash. For now, default is fine.
             }
             is Screen.ItemsScreen -> {
                 val list = userPreferences.packingLists.find { it.id == screen.listId }
                 if (list != null) {
                     SelectableListScreen(
-                        packingList = list,
+                        packingList = list, // Pass the whole list
                         onUpdateItems = { updatedItems ->
                             updateItemsHandler(list.id, updatedItems)
                         },
                         generateItemId = generateItemIdHandler,
-                        onNavigateBack = navigateToPackingListsScreen // Pass the navigation lambda
+                        onNavigateBack = navigateToPackingListsScreen,
+                        onRenameListTitle = { newName -> // Add this
+                            viewModel.renamePackingList(list.id, newName)
+                        }
                     )
 
                     // Add BackHandler here for the ItemsScreen
@@ -211,7 +225,8 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
 fun AllPackingListsScreen(
     packingLists: List<PackingList>,
     onSelectList: (Int) -> Unit,
-    onAddNewList: () -> Unit
+    onAddNewList: () -> Unit,
+    onRenameList: (listId: Int, newName: String) -> Unit // Add this handler
 ) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("My Packing Lists") }) },
@@ -240,18 +255,37 @@ fun AllPackingListsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(packingLists, key = { it.id }) { list ->
-                    PackingListCard(list = list, onClick = { onSelectList(list.id) })
+                    PackingListCard(
+                        list = list,
+                        onClick = { onSelectList(list.id) },
+                        onRename = { newName -> onRenameList(list.id, newName) } // Pass handler
+                    )
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun PackingListCard(list: PackingList, onClick: () -> Unit) {
+fun PackingListCard(
+    list: PackingList,
+    onClick: () -> Unit,
+    onRename: (newName: String) -> Unit // Add this handler
+) {
+    var isEditing by rememberSaveable { mutableStateOf(false) }
+    var editableName by rememberSaveable(list.name) { mutableStateOf(list.name) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(list.name) {
+        if (!isEditing) { // If not editing, ensure editableName is up-to-date with list.name
+            editableName = list.name
+        }
+    }
+
     Card(
-        onClick = onClick,
+        // Make the entire card clickable to navigate, except when editing
+        onClick = { if (!isEditing) onClick() },
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -261,8 +295,56 @@ fun PackingListCard(list: PackingList, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(list.name, style = MaterialTheme.typography.titleMedium)
-            Text("${list.items.count { it.isSelected }}/${list.items.size} packed")
+            if (isEditing) {
+                OutlinedTextField(
+                    value = editableName,
+                    onValueChange = { editableName = it },
+                    label = { Text("List Name") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        if (editableName.isNotBlank()) {
+                            onRename(editableName.trim())
+                        }
+                        isEditing = false
+                        keyboardController?.hide()
+                    }),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = {
+                    if (editableName.isNotBlank()) {
+                        onRename(editableName.trim())
+                    }
+                    isEditing = false
+                    keyboardController?.hide()
+                }) {
+                    Icon(Icons.Filled.Done, contentDescription = "Save name")
+                }
+                IconButton(onClick = {
+                    isEditing = false
+                    editableName = list.name // Reset to original name
+                    keyboardController?.hide()
+                }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Cancel edit")
+                }
+            } else {
+                Text(
+                    list.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onClick) // Make text itself clickable too
+                )
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = {
+                    editableName = list.name // Initialize editableName with current list name
+                    isEditing = true
+                }) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit list name")
+                }
+                Text("${list.items.count { it.isSelected }}/${list.items.size} packed")
+            }
         }
     }
 }

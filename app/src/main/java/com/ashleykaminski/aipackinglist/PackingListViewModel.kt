@@ -71,4 +71,19 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
             }
         }
     }
+    fun renamePackingList(listId: Int, newName: String) {
+        viewModelScope.launch {
+            // Use the 'dataStore' instance that's already a property of this ViewModel
+            dataStore.updateData { currentUserPreferences ->
+                val updatedLists = currentUserPreferences.packingLists.map { list ->
+                    if (list.id == listId) {
+                        list.copy(name = newName)
+                    } else {
+                        list
+                    }
+                }
+                currentUserPreferences.copy(packingLists = updatedLists)
+            }
+        }
+    }
 }

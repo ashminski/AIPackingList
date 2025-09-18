@@ -1,6 +1,7 @@
 package com.ashleykaminski.aipackinglist
 
 import android.util.Log
+import androidx.compose.animation.core.copy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -8,16 +9,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -35,10 +44,11 @@ data class SelectableItem(
 @OptIn(ExperimentalMaterial3Api::class,  ExperimentalLayoutApi::class) // Need ExperimentalLayoutApi for WindowInsets)
 @Composable
 fun SelectableListScreen(
-    packingList: PackingList, // Now takes a full PackingList
-    onUpdateItems: (List<SelectableItem>) -> Unit, // Callback to update items in the parent
-    generateItemId: () -> Int, // Function to get next item ID
-    onNavigateBack: () -> Unit
+    packingList: PackingList, // Now contains the name
+    onUpdateItems: (List<SelectableItem>) -> Unit,
+    generateItemId: () -> Int,
+    onNavigateBack: () -> Unit,
+    onRenameListTitle: (newName: String) -> Unit // New handler
 ) {
     // Initialize rememberedItems from the items within the passed packingList
     var rememberedItems by remember(packingList.items) { mutableStateOf(packingList.items) }
@@ -70,6 +80,16 @@ fun SelectableListScreen(
         }
     }
 
+    var isEditingTitle by rememberSaveable { mutableStateOf(false) }
+    var editableTitle by rememberSaveable(packingList.name) { mutableStateOf(packingList.name) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(packingList.name) {
+        if (!isEditingTitle) {
+            editableTitle = packingList.name
+        }
+    }
+
     Scaffold(
         // Modifier.fillMaxSize() on Scaffold is usually good.
         // Let's ensure the Scaffold itself is not consuming IME insets meant for specific children.
@@ -77,10 +97,57 @@ fun SelectableListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(packingList.name) }, // Use the packing list's name
-                navigationIcon = { // Add a back button
+                title = {
+                    if (isEditingTitle) {
+                        OutlinedTextField(
+                            value = editableTitle,
+                            onValueChange = { editableTitle = it },
+                            label = { Text("List Name") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                if (editableTitle.isNotBlank()) {
+                                    onRenameListTitle(editableTitle.trim())
+                                }
+                                isEditingTitle = false
+                                keyboardController?.hide()
+                            }),
+                            modifier = Modifier.fillMaxWidth() // Changed from .weight(1f)
+                        )
+                    } else {
+                        Text(packingList.name) // Display current list name
+                    }
+                },
+                navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (isEditingTitle) {
+                        IconButton(onClick = {
+                            if (editableTitle.isNotBlank()) {
+                                onRenameListTitle(editableTitle.trim())
+                            }
+                            isEditingTitle = false
+                            keyboardController?.hide()
+                        }) {
+                            Icon(Icons.Filled.Done, contentDescription = "Save title")
+                        }
+                        IconButton(onClick = {
+                            isEditingTitle = false
+                            editableTitle = packingList.name // Reset
+                            keyboardController?.hide()
+                        }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Cancel edit title")
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            editableTitle = packingList.name // Initialize for editing
+                            isEditingTitle = true
+                        }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit list title")
+                        }
                     }
                 }
             )
