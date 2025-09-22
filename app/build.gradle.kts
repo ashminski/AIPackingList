@@ -55,6 +55,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
+    // For testing ViewModel and Coroutines
+    testImplementation(libs.kotlinx.coroutines.test)
+
+    // Optional but highly recommended: for testing flows easily
+    testImplementation(libs.turbine)
+
+    // For using assertions like assertThat()
+    testImplementation(libs.truth)
+
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

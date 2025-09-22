@@ -37,6 +37,23 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
         }
     }
 
+    // ADD THIS FUNCTION
+    fun addNewPackingList() {
+        viewModelScope.launch {
+            dataStore.updateData { currentUserPreferences ->
+                val currentLists = currentUserPreferences.packingLists
+                // Generate a new unique ID for the list
+                val newId = (currentLists.maxOfOrNull { it.id } ?: 0) + 1
+                val newListName = "New List ${currentLists.size + 1}"
+                val newList = PackingList(id = newId, name = newListName, items = emptyList())
+
+                currentUserPreferences.copy(
+                    packingLists = currentLists + newList
+                )
+            }
+        }
+    }
+
     // Only updates packingLists, using the latest other preferences from DataStore
     fun updatePackingListsOnly(newLists: List<PackingList>) {
         viewModelScope.launch {
@@ -85,5 +102,28 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
                 currentUserPreferences.copy(packingLists = updatedLists)
             }
         }
+    }
+
+    // ADD THIS FUNCTION
+    fun updateItemsForList(listId: Int, updatedItems: List<SelectableItem>) {
+        viewModelScope.launch {
+            dataStore.updateData { currentUserPreferences ->
+                val updatedLists = currentUserPreferences.packingLists.map { list ->
+                    if (list.id == listId) {
+                        list.copy(items = updatedItems)
+                    } else {
+                        list
+                    }
+                }
+                currentUserPreferences.copy(packingLists = updatedLists)
+            }
+        }
+    }
+
+    // ADD THIS FUNCTION
+    fun generateNewItemId(list: PackingList): Int {
+        // Find the maximum ID among the existing items and add 1.
+        // If the list is empty, start with 1.
+        return (list.items.maxOfOrNull { it.id } ?: 0) + 1
     }
 }
