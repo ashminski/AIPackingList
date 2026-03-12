@@ -9,7 +9,8 @@ import kotlinx.serialization.Serializable
 data class UserPreferences(
     val packingLists: List<PackingList> = emptyList(),
     val nextPackingListId: Int = 1,
-    val nextItemId: Int = 1
+    val nextItemId: Int = 1,
+    val templates: List<PackingListTemplate> = emptyList()
 )
 
 // Originally from MainActivity.kt

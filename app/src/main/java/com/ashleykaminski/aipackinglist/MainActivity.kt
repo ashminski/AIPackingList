@@ -14,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
+import kotlinx.coroutines.flow.collectLatest
 
 // Data classes (PackingList, UserPreferences), Screen sealed class, userPreferencesDataStore,
 // AllPackingListsScreen, and PackingListCard have been moved to their own files.
@@ -80,6 +81,13 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
         viewModel.renamePackingList(listId, newName)
     }
 
+    // Navigate to ItemsScreen when a list is created from a template
+    LaunchedEffect(Unit) {
+        viewModel.newListCreatedEvent.collectLatest { newListId ->
+            currentScreen = Screen.ItemsScreen(newListId)
+        }
+    }
+
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
@@ -87,7 +95,8 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     packingLists = userPreferences.packingLists,
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
                     onAddNewList = addNewListHandler,
-                    onRenameList = renameListHandler
+                    onRenameList = renameListHandler,
+                    onNavigateToTemplates = { currentScreen = Screen.TemplatesScreen }
                 )
             }
             is Screen.ItemsScreen -> {
@@ -116,6 +125,46 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     }
                     BackHandler(enabled = true) {
                         navigateToPackingListsScreen()
+                    }
+                }
+            }
+            is Screen.TemplatesScreen -> {
+                TemplatesScreen(
+                    templates = userPreferences.templates,
+                    onSelectTemplate = { templateId -> currentScreen = Screen.TemplateDetailScreen(templateId) },
+                    onAddNewTemplate = { viewModel.addNewTemplate() },
+                    onRenameTemplate = { templateId, newName -> viewModel.renameTemplate(templateId, newName) },
+                    onUseTemplate = { templateId ->
+                        viewModel.createListFromTemplate(templateId)
+                        // Navigation happens via newListCreatedEvent LaunchedEffect above
+                    },
+                    onNavigateBack = navigateToPackingListsScreen
+                )
+                BackHandler(enabled = true) {
+                    navigateToPackingListsScreen()
+                }
+            }
+            is Screen.TemplateDetailScreen -> {
+                val template = userPreferences.templates.find { it.id == screen.templateId }
+                val navigateToTemplatesScreen = { currentScreen = Screen.TemplatesScreen }
+                if (template != null) {
+                    TemplateDetailScreen(
+                        template = template,
+                        onUpdateItems = { updatedItems -> viewModel.updateItemsForTemplate(template.id, updatedItems) },
+                        generateItemId = { viewModel.generateNewTemplateItemId(template) },
+                        onNavigateBack = navigateToTemplatesScreen,
+                        onRenameTitle = { newName -> viewModel.renameTemplate(template.id, newName) }
+                    )
+                    BackHandler(enabled = true) {
+                        navigateToTemplatesScreen()
+                    }
+                } else {
+                    Text("Error: Template not found. Navigating back.")
+                    LaunchedEffect(Unit) {
+                        navigateToTemplatesScreen()
+                    }
+                    BackHandler(enabled = true) {
+                        navigateToTemplatesScreen()
                     }
                 }
             }

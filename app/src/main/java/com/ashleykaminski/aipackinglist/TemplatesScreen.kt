@@ -2,9 +2,9 @@ package com.ashleykaminski.aipackinglist
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items // Correct import for LazyColumn items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -12,34 +12,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-// Originally from MainActivity.kt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AllPackingListsScreen(
-    packingLists: List<PackingList>,
-    onSelectList: (Int) -> Unit,
-    onAddNewList: () -> Unit,
-    onRenameList: (listId: Int, newName: String) -> Unit,
-    onNavigateToTemplates: () -> Unit
+fun TemplatesScreen(
+    templates: List<PackingListTemplate>,
+    onSelectTemplate: (Int) -> Unit,
+    onAddNewTemplate: () -> Unit,
+    onRenameTemplate: (templateId: Int, newName: String) -> Unit,
+    onUseTemplate: (Int) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Packing Lists") },
-                actions = {
-                    IconButton(onClick = onNavigateToTemplates) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Templates")
+                title = { Text("Templates") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddNewList) {
-                Icon(Icons.Filled.Add, contentDescription = "Add new packing list")
+            FloatingActionButton(onClick = onAddNewTemplate) {
+                Icon(Icons.Filled.Add, contentDescription = "Add new template")
             }
         }
     ) { paddingValues ->
-        if (packingLists.isEmpty()) {
+        if (templates.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -47,7 +47,7 @@ fun AllPackingListsScreen(
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No packing lists yet. Tap '+' to add one!")
+                Text("No templates yet. Tap '+' to create one!")
             }
         } else {
             LazyColumn(
@@ -57,11 +57,12 @@ fun AllPackingListsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(packingLists, key = { it.id }) { list ->
-                    PackingListCard(
-                        list = list,
-                        onClick = { onSelectList(list.id) },
-                        onRename = { newName -> onRenameList(list.id, newName) } // Pass handler
+                items(templates, key = { it.id }) { template ->
+                    TemplateCard(
+                        template = template,
+                        onClick = { onSelectTemplate(template.id) },
+                        onRename = { newName -> onRenameTemplate(template.id, newName) },
+                        onUseTemplate = { onUseTemplate(template.id) }
                     )
                 }
             }

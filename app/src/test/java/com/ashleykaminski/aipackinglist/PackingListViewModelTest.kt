@@ -127,4 +127,129 @@ class PackingListViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    // --- Template tests ---
+
+    @Test
+    fun `default templates are seeded when templates list is empty`() = runTest {
+        // setUp() creates a fresh ViewModel with empty DataStore, triggering seeding in init
+        val state = viewModel.userPreferencesFlow.value
+        // The init block is a coroutine; advance time to let it run
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+        val seededState = viewModel.userPreferencesFlow.value
+        assertThat(seededState.templates).isEqualTo(PackingListViewModel.DEFAULT_TEMPLATES)
+    }
+
+    @Test
+    fun `default templates are not re-seeded when templates already exist`() = runTest {
+        val existingTemplate = PackingListTemplate(id = 99, name = "My Custom Template")
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(existingTemplate)))
+        viewModel = PackingListViewModel(fakeDataStore)
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+
+        val state = viewModel.userPreferencesFlow.value
+        assertThat(state.templates).hasSize(1)
+        assertThat(state.templates.first().id).isEqualTo(99)
+    }
+
+    @Test
+    fun `addNewTemplate adds a template with default name`() = runTest {
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(PackingListTemplate(id = 1, name = "Existing"))))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        viewModel.addNewTemplate()
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+
+        val templates = viewModel.userPreferencesFlow.value.templates
+        assertThat(templates).hasSize(2)
+        assertThat(templates.last().name).isEqualTo("New Template 2")
+        assertThat(templates.last().items).isEmpty()
+    }
+
+    @Test
+    fun `renameTemplate updates the name of the correct template`() = runTest {
+        val template = PackingListTemplate(id = 5, name = "Old Name")
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(template)))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        viewModel.renameTemplate(templateId = 5, newName = "New Name")
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+
+        val updatedTemplate = viewModel.userPreferencesFlow.value.templates.first()
+        assertThat(updatedTemplate.name).isEqualTo("New Name")
+        assertThat(updatedTemplate.id).isEqualTo(5)
+    }
+
+    @Test
+    fun `updateItemsForTemplate updates only the target template`() = runTest {
+        val t1 = PackingListTemplate(id = 1, name = "T1", items = emptyList())
+        val t2 = PackingListTemplate(id = 2, name = "T2", items = emptyList())
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(t1, t2)))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        val newItems = listOf(TemplateItem(id = 1, text = "Sunscreen"))
+        viewModel.updateItemsForTemplate(templateId = 1, items = newItems)
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+
+        val state = viewModel.userPreferencesFlow.value
+        assertThat(state.templates.find { it.id == 1 }?.items).isEqualTo(newItems)
+        assertThat(state.templates.find { it.id == 2 }?.items).isEmpty()
+    }
+
+    @Test
+    fun `deleteTemplate removes the correct template`() = runTest {
+        val t1 = PackingListTemplate(id = 1, name = "T1")
+        val t2 = PackingListTemplate(id = 2, name = "T2")
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(t1, t2)))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        viewModel.deleteTemplate(templateId = 1)
+        // UnconfinedTestDispatcher runs coroutines eagerly; no need to advance scheduler
+
+        val templates = viewModel.userPreferencesFlow.value.templates
+        assertThat(templates).hasSize(1)
+        assertThat(templates.first().id).isEqualTo(2)
+    }
+
+    @Test
+    fun `createListFromTemplate creates a list with copied items and emits new list id`() = runTest {
+        val templateItems = listOf(TemplateItem(1, "Sunscreen"), TemplateItem(2, "Towel"))
+        val template = PackingListTemplate(id = 3, name = "Beach Trip", items = templateItems)
+        fakeDataStore.setInitialData(UserPreferences(templates = listOf(template), nextPackingListId = 10))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        viewModel.newListCreatedEvent.test {
+            viewModel.createListFromTemplate(templateId = 3)
+            val emittedId = awaitItem()
+            assertThat(emittedId).isEqualTo(10)
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val state = viewModel.userPreferencesFlow.value
+        val newList = state.packingLists.find { it.id == 10 }
+        assertThat(newList).isNotNull()
+        assertThat(newList!!.name).isEqualTo("Beach Trip")
+        assertThat(newList.items).hasSize(2)
+        assertThat(newList.items.map { it.text }).containsExactly("Sunscreen", "Towel")
+        assertThat(newList.items.all { !it.isSelected }).isTrue()
+        // Items are assigned fresh global IDs (starting from nextItemId=1 by default)
+        assertThat(newList.items.map { it.id }).containsExactly(1, 2).inOrder()
+        // nextItemId should be advanced past the copied items
+        assertThat(state.nextItemId).isEqualTo(3)
+        // Original template should be unchanged
+        assertThat(state.templates.first().items).isEqualTo(templateItems)
+    }
+
+    @Test
+    fun `generateNewTemplateItemId returns 1 for an empty template`() {
+        val template = PackingListTemplate(id = 1, name = "Empty", items = emptyList())
+        assertThat(viewModel.generateNewTemplateItemId(template)).isEqualTo(1)
+    }
+
+    @Test
+    fun `generateNewTemplateItemId returns max id plus 1`() {
+        val items = listOf(TemplateItem(3, "A"), TemplateItem(7, "B"), TemplateItem(1, "C"))
+        val template = PackingListTemplate(id = 1, name = "T", items = items)
+        assertThat(viewModel.generateNewTemplateItemId(template)).isEqualTo(8)
+    }
 }
