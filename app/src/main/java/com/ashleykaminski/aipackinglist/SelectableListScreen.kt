@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -34,7 +35,8 @@ fun SelectableListScreen(
     onUpdateItems: (List<SelectableItem>) -> Unit,
     generateItemId: () -> Int,
     onNavigateBack: () -> Unit,
-    onRenameListTitle: (newName: String) -> Unit // New handler
+    onRenameListTitle: (newName: String) -> Unit,
+    onDeleteList: () -> Unit
 ) {
     // Initialize rememberedItems from the items within the passed packingList
     var rememberedItems by remember(packingList.items) { mutableStateOf(packingList.items) }
@@ -126,6 +128,9 @@ fun SelectableListScreen(
                             isEditingTitle = true
                         }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Edit list title")
+                        }
+                        IconButton(onClick = onDeleteList) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete list")
                         }
                     }
                 }

@@ -23,13 +23,16 @@ fun AllPackingListsScreen(
     onSelectList: (Int) -> Unit,
     onAddNewList: () -> Unit,
     onRenameList: (listId: Int, newName: String) -> Unit,
+    onDeleteList: (Int) -> Unit,
     onNavigateToTemplates: () -> Unit,
     onNavigateToTopics: () -> Unit,
-    onNavigateToTripWizard: () -> Unit
+    onNavigateToTripWizard: () -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }
 ) {
     var fabExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("My Packing Lists") },
@@ -110,7 +113,8 @@ fun AllPackingListsScreen(
                     PackingListCard(
                         list = list,
                         onClick = { onSelectList(list.id) },
-                        onRename = { newName -> onRenameList(list.id, newName) }
+                        onRename = { newName -> onRenameList(list.id, newName) },
+                        onDelete = { onDeleteList(list.id) }
                     )
                 }
             }

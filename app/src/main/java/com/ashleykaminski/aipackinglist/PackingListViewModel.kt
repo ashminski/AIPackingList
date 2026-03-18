@@ -23,6 +23,11 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
     private val _newListCreatedEvent = MutableSharedFlow<Int>()
     val newListCreatedEvent: SharedFlow<Int> = _newListCreatedEvent.asSharedFlow()
 
+    private val _listDeletedEvent = MutableSharedFlow<Unit>()
+    val listDeletedEvent: SharedFlow<Unit> = _listDeletedEvent.asSharedFlow()
+
+    private var lastDeletedList: PackingList? = null
+
     init {
         viewModelScope.launch {
             dataStore.updateData { prefs ->
@@ -93,6 +98,26 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
             dataStore.updateData {
                 preferences
             }
+        }
+    }
+
+    fun deletePackingList(listId: Int) {
+        viewModelScope.launch {
+            dataStore.updateData { prefs ->
+                lastDeletedList = prefs.packingLists.find { it.id == listId }
+                prefs.copy(packingLists = prefs.packingLists.filter { it.id != listId })
+            }
+            if (lastDeletedList != null) _listDeletedEvent.emit(Unit)
+        }
+    }
+
+    fun undoDeletePackingList() {
+        val list = lastDeletedList ?: return
+        viewModelScope.launch {
+            dataStore.updateData { prefs ->
+                prefs.copy(packingLists = prefs.packingLists + list)
+            }
+            lastDeletedList = null
         }
     }
 

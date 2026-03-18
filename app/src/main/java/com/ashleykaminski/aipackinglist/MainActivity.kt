@@ -8,6 +8,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -15,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -36,6 +40,8 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
     var currentScreen by rememberSaveable(stateSaver = Screen.Saver) {
         mutableStateOf<Screen>(Screen.PackingListsScreen)
     }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val addNewListHandler = {
         val idForThisList = userPreferences.nextPackingListId
@@ -84,6 +90,20 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
         }
     }
 
+    // Show "List deleted / Undo" snackbar after any list deletion
+    LaunchedEffect(Unit) {
+        viewModel.listDeletedEvent.collectLatest {
+            val result = snackbarHostState.showSnackbar(
+                message = "List deleted",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.undoDeletePackingList()
+            }
+        }
+    }
+
     Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
         when (screen) {
             is Screen.PackingListsScreen -> {
@@ -92,9 +112,11 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
                     onAddNewList = addNewListHandler,
                     onRenameList = renameListHandler,
+                    onDeleteList = { listId -> viewModel.deletePackingList(listId) },
                     onNavigateToTemplates = { currentScreen = Screen.TemplatesScreen },
                     onNavigateToTopics = { currentScreen = Screen.TopicsScreen },
-                    onNavigateToTripWizard = { currentScreen = Screen.TripWizardScreen }
+                    onNavigateToTripWizard = { currentScreen = Screen.TripWizardScreen },
+                    snackbarHostState = snackbarHostState
                 )
             }
             is Screen.ItemsScreen -> {
@@ -109,6 +131,10 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                         onNavigateBack = navigateToPackingListsScreen,
                         onRenameListTitle = { newName ->
                             viewModel.renamePackingList(list.id, newName)
+                        },
+                        onDeleteList = {
+                            viewModel.deletePackingList(list.id)
+                            navigateToPackingListsScreen()
                         }
                     )
 
