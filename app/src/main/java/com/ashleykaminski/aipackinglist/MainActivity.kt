@@ -16,10 +16,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
 import kotlinx.coroutines.flow.collectLatest
 
-// Data classes (PackingList, UserPreferences), Screen sealed class, userPreferencesDataStore,
-// AllPackingListsScreen, and PackingListCard have been moved to their own files.
-// Ensure necessary imports if they are in different packages or not automatically resolved.
-
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,7 +77,7 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
         viewModel.renamePackingList(listId, newName)
     }
 
-    // Navigate to ItemsScreen when a list is created from a template
+    // Navigate to ItemsScreen when a list is created from a template or topics
     LaunchedEffect(Unit) {
         viewModel.newListCreatedEvent.collectLatest { newListId ->
             currentScreen = Screen.ItemsScreen(newListId)
@@ -96,7 +92,9 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     onSelectList = { listId -> currentScreen = Screen.ItemsScreen(listId) },
                     onAddNewList = addNewListHandler,
                     onRenameList = renameListHandler,
-                    onNavigateToTemplates = { currentScreen = Screen.TemplatesScreen }
+                    onNavigateToTemplates = { currentScreen = Screen.TemplatesScreen },
+                    onNavigateToTopics = { currentScreen = Screen.TopicsScreen },
+                    onNavigateToTripWizard = { currentScreen = Screen.TripWizardScreen }
                 )
             }
             is Screen.ItemsScreen -> {
@@ -136,7 +134,6 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     onRenameTemplate = { templateId, newName -> viewModel.renameTemplate(templateId, newName) },
                     onUseTemplate = { templateId ->
                         viewModel.createListFromTemplate(templateId)
-                        // Navigation happens via newListCreatedEvent LaunchedEffect above
                     },
                     onNavigateBack = navigateToPackingListsScreen
                 )
@@ -166,6 +163,58 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     BackHandler(enabled = true) {
                         navigateToTemplatesScreen()
                     }
+                }
+            }
+            is Screen.TopicsScreen -> {
+                TopicsScreen(
+                    topics = userPreferences.topics,
+                    onSelectTopic = { topicId -> currentScreen = Screen.TopicDetailScreen(topicId) },
+                    onAddNewTopic = { viewModel.addNewTopic() },
+                    onRenameTopic = { topicId, newName -> viewModel.renameTopic(topicId, newName) },
+                    onDeleteTopic = { topicId -> viewModel.deleteTopic(topicId) },
+                    onCreateListFromTopics = { topicIds, listName ->
+                        viewModel.createListFromTopics(topicIds, listName)
+                    },
+                    onNavigateBack = navigateToPackingListsScreen
+                )
+                BackHandler(enabled = true) {
+                    navigateToPackingListsScreen()
+                }
+            }
+            is Screen.TopicDetailScreen -> {
+                val topic = userPreferences.topics.find { it.id == screen.topicId }
+                val navigateToTopicsScreen = { currentScreen = Screen.TopicsScreen }
+                if (topic != null) {
+                    TopicDetailScreen(
+                        topic = topic,
+                        onUpdateItems = { updatedItems -> viewModel.updateItemsForTopic(topic.id, updatedItems) },
+                        generateItemId = { viewModel.generateNewTopicItemId(topic) },
+                        onNavigateBack = navigateToTopicsScreen,
+                        onRenameTitle = { newName -> viewModel.renameTopic(topic.id, newName) }
+                    )
+                    BackHandler(enabled = true) {
+                        navigateToTopicsScreen()
+                    }
+                } else {
+                    Text("Error: Topic not found. Navigating back.")
+                    LaunchedEffect(Unit) {
+                        navigateToTopicsScreen()
+                    }
+                    BackHandler(enabled = true) {
+                        navigateToTopicsScreen()
+                    }
+                }
+            }
+            is Screen.TripWizardScreen -> {
+                TripWizardScreen(
+                    questions = PackingListViewModel.DEFAULT_QUESTIONS,
+                    onCreateList = { topicIds, listName ->
+                        viewModel.createListFromTopics(topicIds, listName)
+                    },
+                    onNavigateBack = navigateToPackingListsScreen
+                )
+                BackHandler(enabled = true) {
+                    navigateToPackingListsScreen()
                 }
             }
         }

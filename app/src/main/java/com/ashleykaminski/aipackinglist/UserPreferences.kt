@@ -10,7 +10,8 @@ data class UserPreferences(
     val packingLists: List<PackingList> = emptyList(),
     val nextPackingListId: Int = 1,
     val nextItemId: Int = 1,
-    val templates: List<PackingListTemplate> = emptyList()
+    val templates: List<PackingListTemplate> = emptyList(),
+    val topics: List<TripTopic> = emptyList()
 )
 
 // Originally from MainActivity.kt
