@@ -7,5 +7,6 @@ import kotlinx.serialization.Serializable
 data class SelectableItem(
     val id: Int,
     val text: String,
-    var isSelected: Boolean = false // For the checkbox
+    var isSelected: Boolean = false, // For the checkbox
+    val topicName: String? = null
 )

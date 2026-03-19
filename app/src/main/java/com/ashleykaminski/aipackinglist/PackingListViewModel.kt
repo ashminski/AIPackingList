@@ -301,11 +301,15 @@ class PackingListViewModel(
             var newListId = -1
             dataStore.updateData { prefs ->
                 val selectedTopics = prefs.topics.filter { it.name.trim().lowercase() in normalizedNames }
-                val deduped = selectedTopics
-                    .flatMap { it.items }
-                    .distinctBy { it.text.trim().lowercase() }
                 var nextItemId = prefs.nextItemId
-                val copiedItems = deduped.map { SelectableItem(id = nextItemId++, text = it.text, isSelected = false) }
+                val seenTexts = mutableSetOf<String>()
+                val copiedItems = selectedTopics.flatMap { topic ->
+                    topic.items.mapNotNull { item ->
+                        if (seenTexts.add(item.text.trim().lowercase()))
+                            SelectableItem(id = nextItemId++, text = item.text, topicName = topic.name)
+                        else null
+                    }
+                }
                 val listId = prefs.nextPackingListId
                 val newList = PackingList(id = listId, name = listName, items = copiedItems)
                 newListId = listId
@@ -326,11 +330,15 @@ class PackingListViewModel(
             var newListId = -1
             dataStore.updateData { prefs ->
                 val selectedTopics = prefs.topics.filter { it.id in topicIds }
-                val deduped = selectedTopics
-                    .flatMap { it.items }
-                    .distinctBy { it.text.trim().lowercase() }
                 var nextItemId = prefs.nextItemId
-                val copiedItems = deduped.map { SelectableItem(id = nextItemId++, text = it.text, isSelected = false) }
+                val seenTexts = mutableSetOf<String>()
+                val copiedItems = selectedTopics.flatMap { topic ->
+                    topic.items.mapNotNull { item ->
+                        if (seenTexts.add(item.text.trim().lowercase()))
+                            SelectableItem(id = nextItemId++, text = item.text, topicName = topic.name)
+                        else null
+                    }
+                }
                 val listId = prefs.nextPackingListId
                 val newList = PackingList(id = listId, name = listName, items = copiedItems)
                 newListId = listId

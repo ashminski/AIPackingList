@@ -15,50 +15,68 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-// Assuming PackingList is in the same package or imported
-// import com.ashleykaminski.aipackinglist.PackingList // If PackingList is in a different file but same package, this might not be needed.
-// Or if it's defined elsewhere, ensure the import is correct.
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) // Need ExperimentalLayoutApi for WindowInsets)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SelectableListScreen(
-    packingList: PackingList, // Now contains the name
+    packingList: PackingList,
     onUpdateItems: (List<SelectableItem>) -> Unit,
     generateItemId: () -> Int,
     onNavigateBack: () -> Unit,
     onRenameListTitle: (newName: String) -> Unit,
     onDeleteList: () -> Unit
 ) {
-    // Initialize rememberedItems from the items within the passed packingList
     var rememberedItems by remember(packingList.items) { mutableStateOf(packingList.items) }
     var newItemText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // 1. Create and remember the LazyListState
     val listState = rememberLazyListState()
 
     var activeItemIdForDelete by remember { mutableStateOf<Int?>(null) }
 
-    // Derived state for sorted items
+    val isGrouped = rememberedItems.any { it.topicName != null }
+
+    // Flat sorted items (used when not grouped)
     val sortedItems by remember(rememberedItems) {
         derivedStateOf {
             rememberedItems.sortedWith(compareBy { it.isSelected })
         }
     }
 
-    // When items are added or updated, call onUpdateItems to propagate changes
+    // Grouped sections (used when grouped)
+    val sections by remember(rememberedItems) {
+        derivedStateOf {
+            val topicMap = linkedMapOf<String, MutableList<SelectableItem>>()
+            val myItems = mutableListOf<SelectableItem>()
+            for (item in rememberedItems) {
+                if (item.topicName != null) topicMap.getOrPut(item.topicName) { mutableListOf() }.add(item)
+                else myItems.add(item)
+            }
+            val result = topicMap.map { (name, sectionItems) ->
+                name to sectionItems.sortedWith(compareBy { it.isSelected })
+            }.toMutableList()
+            if (myItems.isNotEmpty())
+                result.add("My Items" to myItems.sortedWith(compareBy { it.isSelected }))
+            result.toList()
+        }
+    }
+
+    var collapsedSections by rememberSaveable { mutableStateOf(emptySet<String>()) }
+
     LaunchedEffect(rememberedItems) {
-        if (rememberedItems != packingList.items) { // Only update if there's an actual change
+        if (rememberedItems != packingList.items) {
             onUpdateItems(rememberedItems)
         }
     }
@@ -96,7 +114,7 @@ fun SelectableListScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Text(packingList.name) // Display current list name
+                        Text(packingList.name)
                     }
                 },
                 navigationIcon = {
@@ -117,14 +135,14 @@ fun SelectableListScreen(
                         }
                         IconButton(onClick = {
                             isEditingTitle = false
-                            editableTitle = packingList.name // Reset
+                            editableTitle = packingList.name
                             keyboardController?.hide()
                         }) {
                             Icon(Icons.Filled.Close, contentDescription = "Cancel edit title")
                         }
                     } else {
                         IconButton(onClick = {
-                            editableTitle = packingList.name // Initialize for editing
+                            editableTitle = packingList.name
                             isEditingTitle = true
                         }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Edit list title")
@@ -137,7 +155,7 @@ fun SelectableListScreen(
             )
         },
         bottomBar = {
-            NewItemInputRow( // This will require NewItemInputRow.kt to be created
+            NewItemInputRow(
                 newItemText = newItemText,
                 onNewItemTextChange = { newItemText = it },
                 onAddItemClick = {
@@ -200,28 +218,99 @@ fun SelectableListScreen(
                 },
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            items(sortedItems, key = { it.id }) { item ->
-                SelectableListItem( // This will require SelectableListItem.kt to be created
-                    item = item,
-                    isCurrentlyActiveForDelete = item.id == activeItemIdForDelete,
-                    onItemClick = {
-                        activeItemIdForDelete = if (activeItemIdForDelete == item.id) null else item.id
-                    },
-                    onItemSelected = { updatedItem ->
-                        rememberedItems = rememberedItems.map {
-                            if (it.id == updatedItem.id) updatedItem else it
-                        }
-                    },
-                    onDeleteItem = { itemToDelete ->
-                        rememberedItems = rememberedItems - itemToDelete
-                        activeItemIdForDelete = null
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Item deleted: ${itemToDelete.text}")
+            if (isGrouped) {
+                sections.forEach { (sectionName, sectionItems) ->
+                    val isExpanded = sectionName !in collapsedSections
+                    val checkedCount = sectionItems.count { it.isSelected }
+                    item(key = "header_$sectionName") {
+                        SectionHeader(
+                            name = sectionName,
+                            checkedCount = checkedCount,
+                            total = sectionItems.size,
+                            isExpanded = isExpanded,
+                            onToggle = {
+                                collapsedSections = if (isExpanded)
+                                    collapsedSections + sectionName
+                                else
+                                    collapsedSections - sectionName
+                            }
+                        )
+                    }
+                    if (isExpanded) {
+                        items(sectionItems, key = { it.id }) { item ->
+                            SelectableListItem(
+                                item = item,
+                                isCurrentlyActiveForDelete = item.id == activeItemIdForDelete,
+                                onItemClick = {
+                                    activeItemIdForDelete = if (activeItemIdForDelete == item.id) null else item.id
+                                },
+                                onItemSelected = { updatedItem ->
+                                    rememberedItems = rememberedItems.map {
+                                        if (it.id == updatedItem.id) updatedItem else it
+                                    }
+                                },
+                                onDeleteItem = { itemToDelete ->
+                                    rememberedItems = rememberedItems - itemToDelete
+                                    activeItemIdForDelete = null
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Item deleted: ${itemToDelete.text}")
+                                    }
+                                }
+                            )
+                            Divider()
                         }
                     }
-                )
-                Divider()
+                }
+            } else {
+                items(sortedItems, key = { it.id }) { item ->
+                    SelectableListItem(
+                        item = item,
+                        isCurrentlyActiveForDelete = item.id == activeItemIdForDelete,
+                        onItemClick = {
+                            activeItemIdForDelete = if (activeItemIdForDelete == item.id) null else item.id
+                        },
+                        onItemSelected = { updatedItem ->
+                            rememberedItems = rememberedItems.map {
+                                if (it.id == updatedItem.id) updatedItem else it
+                            }
+                        },
+                        onDeleteItem = { itemToDelete ->
+                            rememberedItems = rememberedItems - itemToDelete
+                            activeItemIdForDelete = null
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Item deleted: ${itemToDelete.text}")
+                            }
+                        }
+                    )
+                    Divider()
+                }
             }
         }
     }
+}
+
+@Composable
+private fun SectionHeader(
+    name: String,
+    checkedCount: Int,
+    total: Int,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Text("$checkedCount/$total", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            contentDescription = if (isExpanded) "Collapse" else "Expand"
+        )
+    }
+    HorizontalDivider()
 }
