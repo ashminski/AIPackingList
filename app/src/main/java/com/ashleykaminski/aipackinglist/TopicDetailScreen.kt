@@ -18,6 +18,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -63,7 +64,7 @@ fun TopicDetailScreen(
                             onValueChange = { editableTitle = it },
                             label = { Text("Topic Name") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done, capitalization = KeyboardCapitalization.Sentences),
                             keyboardActions = KeyboardActions(onDone = {
                                 if (editableTitle.isNotBlank()) onRenameTitle(editableTitle.trim())
                                 isEditingTitle = false
