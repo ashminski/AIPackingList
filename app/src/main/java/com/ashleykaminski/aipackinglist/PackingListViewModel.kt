@@ -12,7 +12,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : ViewModel() {
+class PackingListViewModel(
+    private val dataStore: DataStore<UserPreferences>,
+    private val defaultTemplates: List<PackingListTemplate> = DEFAULT_TEMPLATES,
+    private val defaultTopics: List<TripTopic> = DEFAULT_TOPICS,
+    val questions: List<TripQuestion> = DEFAULT_QUESTIONS
+) : ViewModel() {
 
     val userPreferencesFlow: StateFlow<UserPreferences> = dataStore.data.stateIn(
         scope = viewModelScope,
@@ -32,8 +37,15 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
         viewModelScope.launch {
             dataStore.updateData { prefs ->
                 var updated = prefs
-                if (updated.templates.isEmpty()) updated = updated.copy(templates = DEFAULT_TEMPLATES)
-                if (updated.topics.isEmpty()) updated = updated.copy(topics = DEFAULT_TOPICS)
+                if (updated.templates.isEmpty()) updated = updated.copy(templates = defaultTemplates)
+                // Additive: seed missing topics by name so new topics.txt entries appear without wiping user edits
+                val storedTopicNames = updated.topics.map { it.name.trim().lowercase() }.toSet()
+                val missingTopics = defaultTopics.filter { it.name.trim().lowercase() !in storedTopicNames }
+                if (missingTopics.isNotEmpty()) {
+                    var nextId = (updated.topics.maxOfOrNull { it.id } ?: 0) + 1
+                    val reIdedTopics = missingTopics.map { it.copy(id = nextId++) }
+                    updated = updated.copy(topics = updated.topics + reIdedTopics)
+                }
                 updated
             }
         }
@@ -221,6 +233,22 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
         return (template.items.maxOfOrNull { it.id } ?: 0) + 1
     }
 
+    fun createTemplateFromTopics(topicNames: List<String>, templateName: String) {
+        val normalizedNames = topicNames.map { it.trim().lowercase() }.toSet()
+        viewModelScope.launch {
+            dataStore.updateData { prefs ->
+                val selectedTopics = prefs.topics.filter { it.name.trim().lowercase() in normalizedNames }
+                val items = selectedTopics
+                    .flatMap { it.items }
+                    .distinctBy { it.text.trim().lowercase() }
+                    .mapIndexed { index, item -> TemplateItem(id = index + 1, text = item.text) }
+                val newId = (prefs.templates.maxOfOrNull { it.id } ?: 0) + 1
+                val newTemplate = PackingListTemplate(id = newId, name = templateName, items = items)
+                prefs.copy(templates = prefs.templates + newTemplate)
+            }
+        }
+    }
+
     // --- Topic CRUD ---
 
     fun addNewTopic() {
@@ -267,6 +295,32 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
         return (topic.items.maxOfOrNull { it.id } ?: 0) + 1
     }
 
+    fun createListFromTopicNames(topicNames: List<String>, listName: String) {
+        val normalizedNames = topicNames.map { it.trim().lowercase() }.toSet()
+        viewModelScope.launch {
+            var newListId = -1
+            dataStore.updateData { prefs ->
+                val selectedTopics = prefs.topics.filter { it.name.trim().lowercase() in normalizedNames }
+                val deduped = selectedTopics
+                    .flatMap { it.items }
+                    .distinctBy { it.text.trim().lowercase() }
+                var nextItemId = prefs.nextItemId
+                val copiedItems = deduped.map { SelectableItem(id = nextItemId++, text = it.text, isSelected = false) }
+                val listId = prefs.nextPackingListId
+                val newList = PackingList(id = listId, name = listName, items = copiedItems)
+                newListId = listId
+                prefs.copy(
+                    packingLists = prefs.packingLists + newList,
+                    nextPackingListId = listId + 1,
+                    nextItemId = nextItemId
+                )
+            }
+            if (newListId != -1) {
+                _newListCreatedEvent.emit(newListId)
+            }
+        }
+    }
+
     fun createListFromTopics(topicIds: List<Int>, listName: String) {
         viewModelScope.launch {
             var newListId = -1
@@ -293,70 +347,7 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
     }
 
     companion object {
-        val DEFAULT_TEMPLATES = listOf(
-            PackingListTemplate(
-                id = 1,
-                name = "Beach Trip",
-                items = listOf(
-                    TemplateItem(1, "Sunscreen"),
-                    TemplateItem(2, "Swimsuit"),
-                    TemplateItem(3, "Beach towel"),
-                    TemplateItem(4, "Sunglasses"),
-                    TemplateItem(5, "Flip flops"),
-                    TemplateItem(6, "Hat"),
-                    TemplateItem(7, "Water bottle"),
-                    TemplateItem(8, "Beach bag"),
-                    TemplateItem(9, "Snacks"),
-                    TemplateItem(10, "Book or e-reader")
-                )
-            ),
-            PackingListTemplate(
-                id = 2,
-                name = "Ski Trip",
-                items = listOf(
-                    TemplateItem(1, "Ski jacket"),
-                    TemplateItem(2, "Ski pants"),
-                    TemplateItem(3, "Thermal base layers"),
-                    TemplateItem(4, "Ski socks"),
-                    TemplateItem(5, "Gloves"),
-                    TemplateItem(6, "Goggles"),
-                    TemplateItem(7, "Helmet"),
-                    TemplateItem(8, "Neck gaiter"),
-                    TemplateItem(9, "Lip balm with SPF"),
-                    TemplateItem(10, "Hand warmers")
-                )
-            ),
-            PackingListTemplate(
-                id = 3,
-                name = "Weekend Away",
-                items = listOf(
-                    TemplateItem(1, "Change of clothes"),
-                    TemplateItem(2, "Toiletries bag"),
-                    TemplateItem(3, "Phone charger"),
-                    TemplateItem(4, "Medications"),
-                    TemplateItem(5, "Wallet and ID"),
-                    TemplateItem(6, "Snacks"),
-                    TemplateItem(7, "Headphones"),
-                    TemplateItem(8, "Pajamas")
-                )
-            ),
-            PackingListTemplate(
-                id = 4,
-                name = "City Break",
-                items = listOf(
-                    TemplateItem(1, "Comfortable walking shoes"),
-                    TemplateItem(2, "City map or guidebook"),
-                    TemplateItem(3, "Day bag or backpack"),
-                    TemplateItem(4, "Camera"),
-                    TemplateItem(5, "Portable charger"),
-                    TemplateItem(6, "Umbrella"),
-                    TemplateItem(7, "Smart casual outfit"),
-                    TemplateItem(8, "Travel adapter"),
-                    TemplateItem(9, "Wallet and ID"),
-                    TemplateItem(10, "Medications")
-                )
-            )
-        )
+        val DEFAULT_TEMPLATES: List<PackingListTemplate> = emptyList()
 
         val DEFAULT_TOPICS = listOf(
             TripTopic(
@@ -472,14 +463,14 @@ class PackingListViewModel(private val dataStore: DataStore<UserPreferences>) : 
         )
 
         val DEFAULT_QUESTIONS = listOf(
-            TripQuestion(id = 1, text = "Will you be swimming?", topicIds = listOf(1)),
-            TripQuestion(id = 2, text = "Will you be hiking?", topicIds = listOf(2)),
-            TripQuestion(id = 3, text = "Will you be cycling?", topicIds = listOf(3)),
-            TripQuestion(id = 4, text = "Will you experience cold weather?", topicIds = listOf(4)),
-            TripQuestion(id = 5, text = "Is this a business trip?", topicIds = listOf(5)),
-            TripQuestion(id = 6, text = "Will you spend time at the beach?", topicIds = listOf(1, 6)),
-            TripQuestion(id = 7, text = "Will you be camping?", topicIds = listOf(7)),
-            TripQuestion(id = 8, text = "Will you be doing city sightseeing?", topicIds = listOf(8))
+            TripQuestion(id = 1, text = "Will you be swimming?", topicNames = listOf("Swimming")),
+            TripQuestion(id = 2, text = "Will you be hiking?", topicNames = listOf("Hiking")),
+            TripQuestion(id = 3, text = "Will you be cycling?", topicNames = listOf("Cycling")),
+            TripQuestion(id = 4, text = "Will you experience cold weather?", topicNames = listOf("Cold Weather")),
+            TripQuestion(id = 5, text = "Is this a business trip?", topicNames = listOf("Business Travel")),
+            TripQuestion(id = 6, text = "Will you spend time at the beach?", topicNames = listOf("Swimming", "Beach")),
+            TripQuestion(id = 7, text = "Will you be camping?", topicNames = listOf("Camping")),
+            TripQuestion(id = 8, text = "Will you be doing city sightseeing?", topicNames = listOf("City Sightseeing"))
         )
     }
 }

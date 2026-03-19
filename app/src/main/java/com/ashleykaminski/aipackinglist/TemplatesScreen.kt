@@ -7,7 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -20,8 +20,35 @@ fun TemplatesScreen(
     onAddNewTemplate: () -> Unit,
     onRenameTemplate: (templateId: Int, newName: String) -> Unit,
     onUseTemplate: (Int) -> Unit,
+    onBuildFromQuiz: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("New template") },
+            text = { Text("How would you like to create this template?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCreateDialog = false
+                    onBuildFromQuiz()
+                }) {
+                    Text("From quiz")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showCreateDialog = false
+                    onAddNewTemplate()
+                }) {
+                    Text("Blank")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -34,7 +61,7 @@ fun TemplatesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddNewTemplate) {
+            FloatingActionButton(onClick = { showCreateDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add new template")
             }
         }

@@ -1,0 +1,128 @@
+Swimming
+- Swimsuit
+- Sunscreen
+- Towel
+- Flip flops
+- Swim cover-up
+
+Hiking
+- Hiking boots
+- Trekking poles
+- Backpack
+- Water bottle
+- Trail snacks
+- First aid kit
+- Map or GPS device
+- Sunscreen
+- Hat
+
+Cycling
+- Helmet
+- Cycling gloves
+- Padded shorts
+- Water bottle
+- Repair kit
+- Sunglasses
+- Bike lock
+
+Cold Weather
+- Thermal base layers
+- Warm jacket
+- Gloves
+- Winter hat
+- Scarf
+- Warm socks
+- Hand warmers
+- Lip balm
+
+Business Travel
+- Laptop
+- Laptop charger
+- Business cards
+- Dress clothes
+- Dress shoes
+- Notebook and pen
+- Portable charger
+- Travel adapter
+
+Beach
+- Sunscreen
+- Beach towel
+- Sunglasses
+- Flip flops
+- Hat
+- Beach bag
+- Snacks
+- Water bottle
+
+Camping
+- Tent
+- Sleeping bag
+- Sleeping pad
+- Flashlight or headlamp
+- Camp stove
+- Cooking utensils
+- Bug repellent
+- Fire starter
+- Rope or paracord
+
+City Sightseeing
+- Comfortable walking shoes
+- Day bag or backpack
+- Camera
+- City map or guidebook
+- Portable charger
+- Umbrella
+- Snacks
+- Water bottle
+
+Skiing
+- Skis
+- Ski Poles
+- Ski Boots
+- Ski Backpack
+- Ski Socks
+- Ski baselayer pants
+- Ski baselayer shirts
+- Layering jacket
+- Ski jacket
+- Ski Gloves / Mittens
+- Ski Glove liners
+- Helmet
+- Goggles
+- Extra goggle lenses
+- Balaclava
+- Sunscreen
+- SPF Lip Balm
+- Ikon or Epic pass
+
+Default Toiletries
+- Soap
+- Shampoo
+- Conditioner
+- Face soap
+- Moisturizer
+- Hair Ties
+- Hairbrush
+- Deodorant
+- Prescriptions
+- Razor
+- Toothbrush
+- Toothpaste
+- Eyedrops
+- Floss
+- OTC Meds
+- Lotion
+
+Default Clothing
+- Pajamas
+- Sunglasses
+- Underwear
+- Socks
+- Shirts
+- Jeans
+
+Default Electronics
+- Earbuds
+- Tablet
+- Chargers

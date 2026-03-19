@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TripWizardScreen(
     questions: List<TripQuestion>,
-    onCreateList: (topicIds: List<Int>, listName: String) -> Unit,
+    onCreateList: (topicNames: List<String>, listName: String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
     var answers by remember { mutableStateOf(mapOf<Int, Boolean>()) }
@@ -23,9 +23,9 @@ fun TripWizardScreen(
     var listName by remember { mutableStateOf("My Trip") }
 
     val allAnswered = questions.all { it.id in answers }
-    val activatedTopicIds = questions
+    val activatedTopicNames = questions
         .filter { answers[it.id] == true }
-        .flatMap { it.topicIds }
+        .flatMap { it.topicNames }
         .distinct()
 
     if (showNameDialog) {
@@ -44,7 +44,7 @@ fun TripWizardScreen(
                 TextButton(
                     onClick = {
                         if (listName.isNotBlank()) {
-                            onCreateList(activatedTopicIds, listName.trim())
+                            onCreateList(activatedTopicNames, listName.trim())
                             showNameDialog = false
                         }
                     },

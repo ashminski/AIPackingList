@@ -30,20 +30,33 @@ class PackingListViewModelTopicsTest {
     }
 
     @Test
-    fun `default topics are not re-seeded when topics already exist`() = runTest {
+    fun `user topics are preserved during additive seeding`() = runTest {
         val existingTopic = TripTopic(id = 99, name = "My Custom Topic")
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(existingTopic)))
         viewModel = PackingListViewModel(fakeDataStore)
 
         val state = viewModel.userPreferencesFlow.value
-        assertThat(state.topics).hasSize(1)
-        assertThat(state.topics.first().id).isEqualTo(99)
+        // User's custom topic must still be present
+        assertThat(state.topics.any { it.id == 99 && it.name == "My Custom Topic" }).isTrue()
+    }
+
+    @Test
+    fun `missing default topics are added additively`() = runTest {
+        val existingTopic = TripTopic(id = 1, name = "Swimming") // matches a default topic name
+        fakeDataStore.setInitialData(UserPreferences(topics = listOf(existingTopic)))
+        viewModel = PackingListViewModel(fakeDataStore)
+
+        val state = viewModel.userPreferencesFlow.value
+        // Swimming already existed, so only the other defaults should be added
+        val topicNames = state.topics.map { it.name }
+        assertThat(topicNames).contains("Swimming")
+        assertThat(topicNames).hasSize(PackingListViewModel.DEFAULT_TOPICS.size)
     }
 
     @Test
     fun `addNewTopic adds a topic with default name`() = runTest {
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(TripTopic(id = 1, name = "Existing"))))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         viewModel.addNewTopic()
 
@@ -57,7 +70,7 @@ class PackingListViewModelTopicsTest {
     fun `renameTopic updates the name of the correct topic`() = runTest {
         val topic = TripTopic(id = 5, name = "Old Name")
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(topic)))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         viewModel.renameTopic(topicId = 5, newName = "New Name")
 
@@ -71,7 +84,7 @@ class PackingListViewModelTopicsTest {
         val t1 = TripTopic(id = 1, name = "T1", items = emptyList())
         val t2 = TripTopic(id = 2, name = "T2", items = emptyList())
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(t1, t2)))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         val newItems = listOf(TemplateItem(id = 1, text = "Swimsuit"))
         viewModel.updateItemsForTopic(topicId = 1, items = newItems)
@@ -86,7 +99,7 @@ class PackingListViewModelTopicsTest {
         val t1 = TripTopic(id = 1, name = "T1")
         val t2 = TripTopic(id = 2, name = "T2")
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(t1, t2)))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         viewModel.deleteTopic(topicId = 1)
 
@@ -106,7 +119,7 @@ class PackingListViewModelTopicsTest {
             items = listOf(TemplateItem(1, "Sunscreen"), TemplateItem(2, "Towel")) // "Towel" duplicates topic1
         )
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(topic1, topic2), nextPackingListId = 5))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         viewModel.newListCreatedEvent.test {
             viewModel.createListFromTopics(topicIds = listOf(1, 2), listName = "Beach Trip")
@@ -130,7 +143,7 @@ class PackingListViewModelTopicsTest {
         val topic1 = TripTopic(id = 1, name = "T1", items = listOf(TemplateItem(1, "sunscreen")))
         val topic2 = TripTopic(id = 2, name = "T2", items = listOf(TemplateItem(1, "Sunscreen")))
         fakeDataStore.setInitialData(UserPreferences(topics = listOf(topic1, topic2), nextPackingListId = 1))
-        viewModel = PackingListViewModel(fakeDataStore)
+        viewModel = PackingListViewModel(fakeDataStore, defaultTopics = emptyList())
 
         viewModel.createListFromTopics(topicIds = listOf(1, 2), listName = "Test List")
 

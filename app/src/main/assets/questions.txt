@@ -1,0 +1,29 @@
+Would you like to add your default items?
+> Default Toiletries, Default Clothing, Default Electronics
+
+Is there a pool or hot tub where you're going?
+> Swimming
+
+Will you be hiking?
+> Hiking
+
+Will you be cycling?
+> Cycling
+
+Are you going someplace cold?
+> Cold Weather
+
+Will you be skiing?
+> Skiing, Cold Weather
+
+Is this a business trip?
+> Business Travel
+
+Will you spend time at the beach?
+> Swimming, Beach
+
+Will you be camping?
+> Camping
+
+Will you be sightseeing?
+> City Sightseeing

@@ -11,6 +11,7 @@ sealed class Screen {
     object TopicsScreen : Screen()
     data class TopicDetailScreen(val topicId: Int) : Screen()
     object TripWizardScreen : Screen()
+    object TemplateWizardScreen : Screen()
 
     companion object {
         private const val TYPE_PACKING_LISTS = "PackingListsScreen"
@@ -20,6 +21,7 @@ sealed class Screen {
         private const val TYPE_TOPICS = "TopicsScreen"
         private const val TYPE_TOPIC_DETAIL = "TopicDetailScreen"
         private const val TYPE_TRIP_WIZARD = "TripWizardScreen"
+        private const val TYPE_TEMPLATE_WIZARD = "TemplateWizardScreen"
         private const val KEY_LIST_ID = "listId"
         private const val KEY_TEMPLATE_ID = "templateId"
         private const val KEY_TOPIC_ID = "topicId"
@@ -34,6 +36,7 @@ sealed class Screen {
                     is TopicsScreen -> mapOf("type" to TYPE_TOPICS)
                     is TopicDetailScreen -> mapOf("type" to TYPE_TOPIC_DETAIL, KEY_TOPIC_ID to screen.topicId)
                     is TripWizardScreen -> mapOf("type" to TYPE_TRIP_WIZARD)
+                    is TemplateWizardScreen -> mapOf("type" to TYPE_TEMPLATE_WIZARD)
                 }
             },
             restore = { savedValue ->
@@ -55,6 +58,7 @@ sealed class Screen {
                         if (topicId != null) TopicDetailScreen(topicId) else TopicsScreen
                     }
                     TYPE_TRIP_WIZARD -> TripWizardScreen
+                    TYPE_TEMPLATE_WIZARD -> TemplateWizardScreen
                     else -> null
                 }
             }

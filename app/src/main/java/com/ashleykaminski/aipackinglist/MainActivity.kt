@@ -161,6 +161,7 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     onUseTemplate = { templateId ->
                         viewModel.createListFromTemplate(templateId)
                     },
+                    onBuildFromQuiz = { currentScreen = Screen.TemplateWizardScreen },
                     onNavigateBack = navigateToPackingListsScreen
                 )
                 BackHandler(enabled = true) {
@@ -233,14 +234,28 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
             }
             is Screen.TripWizardScreen -> {
                 TripWizardScreen(
-                    questions = PackingListViewModel.DEFAULT_QUESTIONS,
-                    onCreateList = { topicIds, listName ->
-                        viewModel.createListFromTopics(topicIds, listName)
+                    questions = viewModel.questions,
+                    onCreateList = { topicNames, listName ->
+                        viewModel.createListFromTopicNames(topicNames, listName)
                     },
                     onNavigateBack = navigateToPackingListsScreen
                 )
                 BackHandler(enabled = true) {
                     navigateToPackingListsScreen()
+                }
+            }
+            is Screen.TemplateWizardScreen -> {
+                val navigateToTemplatesScreen = { currentScreen = Screen.TemplatesScreen }
+                TripWizardScreen(
+                    questions = viewModel.questions,
+                    onCreateList = { topicNames, templateName ->
+                        viewModel.createTemplateFromTopics(topicNames, templateName)
+                        navigateToTemplatesScreen()
+                    },
+                    onNavigateBack = navigateToTemplatesScreen
+                )
+                BackHandler(enabled = true) {
+                    navigateToTemplatesScreen()
                 }
             }
         }
