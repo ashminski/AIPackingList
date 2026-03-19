@@ -18,7 +18,6 @@ fun TopicsScreen(
     topics: List<TripTopic>,
     onSelectTopic: (Int) -> Unit,
     onAddNewTopic: () -> Unit,
-    onRenameTopic: (topicId: Int, newName: String) -> Unit,
     onDeleteTopic: (Int) -> Unit,
     onCreateListFromTopics: (topicIds: List<Int>, listName: String) -> Unit,
     onNavigateBack: () -> Unit
@@ -124,7 +123,6 @@ fun TopicsScreen(
                                 }
                             },
                             onEditTopic = { onSelectTopic(topic.id) },
-                            onRename = { newName -> onRenameTopic(topic.id, newName) },
                             onDelete = { onDeleteTopic(topic.id) }
                         )
                     }

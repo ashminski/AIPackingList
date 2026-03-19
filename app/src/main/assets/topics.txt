@@ -1,3 +1,34 @@
+Default Toiletries
+- Soap
+- Shampoo
+- Conditioner
+- Face soap
+- Moisturizer
+- Hair Ties
+- Hairbrush
+- Deodorant
+- Prescriptions
+- Razor
+- Toothbrush
+- Toothpaste
+- Eyedrops
+- Floss
+- OTC Meds
+- Lotion
+
+Default Clothing
+- Pajamas
+- Sunglasses
+- Underwear
+- Socks
+- Shirts
+- Jeans
+
+Default Electronics
+- Earbuds
+- Tablet
+- Chargers
+
 Swimming
 - Swimsuit
 - Sunscreen
@@ -95,34 +126,3 @@ Skiing
 - Sunscreen
 - SPF Lip Balm
 - Ikon or Epic pass
-
-Default Toiletries
-- Soap
-- Shampoo
-- Conditioner
-- Face soap
-- Moisturizer
-- Hair Ties
-- Hairbrush
-- Deodorant
-- Prescriptions
-- Razor
-- Toothbrush
-- Toothpaste
-- Eyedrops
-- Floss
-- OTC Meds
-- Lotion
-
-Default Clothing
-- Pajamas
-- Sunglasses
-- Underwear
-- Socks
-- Shirts
-- Jeans
-
-Default Electronics
-- Earbuds
-- Tablet
-- Chargers

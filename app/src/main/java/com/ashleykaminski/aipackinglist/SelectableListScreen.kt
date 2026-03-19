@@ -2,6 +2,8 @@ package com.ashleykaminski.aipackinglist
 
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.tooling.preview.Preview
+import com.ashleykaminski.aipackinglist.ui.theme.AIPackingListTheme
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,8 +17,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -73,7 +75,18 @@ fun SelectableListScreen(
         }
     }
 
-    var collapsedSections by rememberSaveable { mutableStateOf(emptySet<String>()) }
+    var collapsedSections by rememberSaveable(packingList.id) {
+        val topicMap = linkedMapOf<String, MutableList<SelectableItem>>()
+        val myItems = mutableListOf<SelectableItem>()
+        for (item in packingList.items) {
+            if (item.topicName != null) topicMap.getOrPut(item.topicName) { mutableListOf() }.add(item)
+            else myItems.add(item)
+        }
+        val fullyChecked = mutableSetOf<String>()
+        topicMap.forEach { (name, items) -> if (items.isNotEmpty() && items.all { it.isSelected }) fullyChecked.add(name) }
+        if (myItems.isNotEmpty() && myItems.all { it.isSelected }) fullyChecked.add("My Items")
+        mutableStateOf(fullyChecked.toSet())
+    }
 
     LaunchedEffect(rememberedItems) {
         if (rememberedItems != packingList.items) {
@@ -257,7 +270,6 @@ fun SelectableListScreen(
                                     }
                                 }
                             )
-                            Divider()
                         }
                     }
                 }
@@ -282,7 +294,6 @@ fun SelectableListScreen(
                             }
                         }
                     )
-                    Divider()
                 }
             }
         }
@@ -308,9 +319,39 @@ private fun SectionHeader(
         Text("$checkedCount/$total", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.width(8.dp))
         Icon(
-            if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+            if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
             contentDescription = if (isExpanded) "Collapse" else "Expand"
         )
     }
     HorizontalDivider()
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+private fun SelectableListScreenPreview() {
+    val sampleList = PackingList(
+        id = 1,
+        name = "Beach Trip",
+        items = listOf(
+            SelectableItem(id = 1, text = "Swimsuit", isSelected = false, topicName = "Swimming"),
+            SelectableItem(id = 2, text = "Goggles", isSelected = true, topicName = "Swimming"),
+            SelectableItem(id = 3, text = "Swim cap", isSelected = false, topicName = "Swimming"),
+            SelectableItem(id = 4, text = "Sunscreen", isSelected = false, topicName = "Beach"),
+            SelectableItem(id = 5, text = "Beach towel", isSelected = true, topicName = "Beach"),
+            SelectableItem(id = 6, text = "Flip flops", isSelected = false, topicName = "Beach"),
+            SelectableItem(id = 7, text = "Hat", isSelected = false, topicName = "Beach"),
+            SelectableItem(id = 8, text = "Snacks", isSelected = false),
+            SelectableItem(id = 9, text = "Water bottle", isSelected = false),
+        )
+    )
+    AIPackingListTheme {
+        SelectableListScreen(
+            packingList = sampleList,
+            onUpdateItems = {},
+            generateItemId = { 100 },
+            onNavigateBack = {},
+            onRenameListTitle = {},
+            onDeleteList = {}
+        )
+    }
 }

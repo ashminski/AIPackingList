@@ -19,6 +19,7 @@ fun TemplatesScreen(
     onSelectTemplate: (Int) -> Unit,
     onAddNewTemplate: () -> Unit,
     onRenameTemplate: (templateId: Int, newName: String) -> Unit,
+    onDeleteTemplate: (Int) -> Unit,
     onUseTemplate: (Int) -> Unit,
     onBuildFromQuiz: () -> Unit,
     onNavigateBack: () -> Unit
@@ -89,6 +90,7 @@ fun TemplatesScreen(
                         template = template,
                         onClick = { onSelectTemplate(template.id) },
                         onRename = { newName -> onRenameTemplate(template.id, newName) },
+                        onDelete = { onDeleteTemplate(template.id) },
                         onUseTemplate = { onUseTemplate(template.id) }
                     )
                 }

@@ -214,7 +214,7 @@ class PackingListViewModel(
                 val template = prefs.templates.find { it.id == templateId } ?: return@updateData prefs
                 val listId = prefs.nextPackingListId
                 var nextItemId = prefs.nextItemId
-                val copiedItems = template.items.map { SelectableItem(id = nextItemId++, text = it.text, isSelected = false) }
+                val copiedItems = template.items.map { SelectableItem(id = nextItemId++, text = it.text, topicName = it.topicName) }
                 val newList = PackingList(id = listId, name = template.name, items = copiedItems)
                 newListId = listId
                 prefs.copy(
@@ -238,10 +238,15 @@ class PackingListViewModel(
         viewModelScope.launch {
             dataStore.updateData { prefs ->
                 val selectedTopics = prefs.topics.filter { it.name.trim().lowercase() in normalizedNames }
-                val items = selectedTopics
-                    .flatMap { it.items }
-                    .distinctBy { it.text.trim().lowercase() }
-                    .mapIndexed { index, item -> TemplateItem(id = index + 1, text = item.text) }
+                var nextId = 1
+                val seenTexts = mutableSetOf<String>()
+                val items = selectedTopics.flatMap { topic ->
+                    topic.items.mapNotNull { item ->
+                        if (seenTexts.add(item.text.trim().lowercase()))
+                            TemplateItem(id = nextId++, text = item.text, topicName = topic.name)
+                        else null
+                    }
+                }
                 val newId = (prefs.templates.maxOfOrNull { it.id } ?: 0) + 1
                 val newTemplate = PackingListTemplate(id = newId, name = templateName, items = items)
                 prefs.copy(templates = prefs.templates + newTemplate)
@@ -361,6 +366,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 1,
                 name = "Swimming",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Swimsuit"),
                     TemplateItem(2, "Goggles"),
@@ -372,6 +378,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 2,
                 name = "Hiking",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Hiking boots"),
                     TemplateItem(2, "Trekking poles"),
@@ -387,6 +394,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 3,
                 name = "Cycling",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Helmet"),
                     TemplateItem(2, "Cycling gloves"),
@@ -400,6 +408,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 4,
                 name = "Cold Weather",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Thermal base layers"),
                     TemplateItem(2, "Warm jacket"),
@@ -414,6 +423,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 5,
                 name = "Business Travel",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Laptop"),
                     TemplateItem(2, "Laptop charger"),
@@ -428,6 +438,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 6,
                 name = "Beach",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Sunscreen"),
                     TemplateItem(2, "Beach towel"),
@@ -442,6 +453,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 7,
                 name = "Camping",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Tent"),
                     TemplateItem(2, "Sleeping bag"),
@@ -457,6 +469,7 @@ class PackingListViewModel(
             TripTopic(
                 id = 8,
                 name = "City Sightseeing",
+                isBuiltIn = true,
                 items = listOf(
                     TemplateItem(1, "Comfortable walking shoes"),
                     TemplateItem(2, "Day bag or backpack"),

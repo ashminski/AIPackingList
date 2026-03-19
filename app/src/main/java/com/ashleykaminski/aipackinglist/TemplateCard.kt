@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -24,7 +25,8 @@ fun TemplateCard(
     template: PackingListTemplate,
     onClick: () -> Unit,
     onRename: (newName: String) -> Unit,
-    onUseTemplate: () -> Unit
+    onUseTemplate: () -> Unit,
+    onDelete: () -> Unit
 ) {
     var isEditing by rememberSaveable { mutableStateOf(false) }
     var editableName by rememberSaveable(template.name) { mutableStateOf(template.name) }
@@ -89,6 +91,9 @@ fun TemplateCard(
                         isEditing = true
                     }) {
                         Icon(Icons.Filled.Edit, contentDescription = "Edit template name")
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete template")
                     }
                     Text("${template.items.size} items")
                 }

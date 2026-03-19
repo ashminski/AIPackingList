@@ -53,7 +53,7 @@ fun SelectableListItem(
             .fillMaxWidth()
             .background(itemBackgroundColor)
             .clickable { onItemClick() }
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(

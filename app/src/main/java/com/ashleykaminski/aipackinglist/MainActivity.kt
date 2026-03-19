@@ -158,6 +158,7 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     onSelectTemplate = { templateId -> currentScreen = Screen.TemplateDetailScreen(templateId) },
                     onAddNewTemplate = { viewModel.addNewTemplate() },
                     onRenameTemplate = { templateId, newName -> viewModel.renameTemplate(templateId, newName) },
+                    onDeleteTemplate = { templateId -> viewModel.deleteTemplate(templateId) },
                     onUseTemplate = { templateId ->
                         viewModel.createListFromTemplate(templateId)
                     },
@@ -197,7 +198,6 @@ fun PackingListApp(viewModel: PackingListViewModel = viewModel(factory = Packing
                     topics = userPreferences.topics,
                     onSelectTopic = { topicId -> currentScreen = Screen.TopicDetailScreen(topicId) },
                     onAddNewTopic = { viewModel.addNewTopic() },
-                    onRenameTopic = { topicId, newName -> viewModel.renameTopic(topicId, newName) },
                     onDeleteTopic = { topicId -> viewModel.deleteTopic(topicId) },
                     onCreateListFromTopics = { topicIds, listName ->
                         viewModel.createListFromTopics(topicIds, listName)
